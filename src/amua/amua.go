@@ -349,6 +349,13 @@ func keybindings(view *View, g *gocui.Gui) error {
 			return nil
 		}
 	}
+	maildir_all_down := func() func(g *gocui.Gui, v *gocui.View) error {
+		return func(g *gocui.Gui, v *gocui.View) error {
+			dy := len(view.cur_maildir_view.md.messages)
+			view.cur_maildir_view.scroll(v, dy)
+			return nil
+		}
+	}
 	if err := g.SetKeybinding(MAILDIR_VIEW, gocui.KeyPgup, gocui.ModNone, maildir_move(-10)); err != nil {
 		return err
 	}
@@ -365,6 +372,9 @@ func keybindings(view *View, g *gocui.Gui) error {
 		return err
 	}
 	if err := g.SetKeybinding(MAILDIR_VIEW, 'k', gocui.ModNone, maildir_move(-1)); err != nil {
+		return err
+	}
+	if err := g.SetKeybinding(MAILDIR_VIEW, 'G', gocui.ModNone, maildir_all_down()); err != nil {
 		return err
 	}
 	if err := g.SetKeybinding(MAILDIR_VIEW, 'q', gocui.ModNone, quit); err != nil {
