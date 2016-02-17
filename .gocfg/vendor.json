@@ -1,0 +1,25 @@
+{
+  "GitRepos": {
+    "vendor/src/github.com/deweerdt/gocui": {
+      "URI": "https://github.com/deweerdt/gocui",
+      "Ref": "5ef6613f6094a51b3334713a39581e4145cf549b"
+    },
+    "vendor/src/github.com/jroimartin/gocui": {
+      "URI": "https://github.com/jroimartin/gocui",
+      "Ref": "a8eba6db38c8459e1bbccfe38359b0405084a4f2"
+    },
+    "vendor/src/github.com/mattn/go-runewidth": {
+      "URI": "https://github.com/mattn/go-runewidth",
+      "Ref": "e882a96ec18dd43fa283187b66af74497c9101c0"
+    },
+    "vendor/src/github.com/mitchellh/colorstring": {
+      "URI": "https://github.com/mitchellh/colorstring",
+      "Ref": "8631ce90f28644f54aeedcb3e389a85174e067d1"
+    },
+    "vendor/src/github.com/nsf/termbox-go": {
+      "URI": "https://github.com/nsf/termbox-go",
+      "Ref": "362329b0aa6447eadd52edd8d660ec1dff470295"
+    }
+  },
+  "MercurialRepos": {}
+}
