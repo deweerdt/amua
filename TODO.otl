@@ -22,7 +22,12 @@
 	[_] 0% config format
 		; https://github.com/BurntSushi/toml
 	[_] % maildir sidebar
-			
+	[_] % search
+		: Ideas:
+		: - have search work like a series of pipes:
+		:   from foo | contains urgent | before 1m
+		: - use leveldb for indexing words
+		: - use metaphone for fuzzy matching
 future
 	maildir
 		actions
