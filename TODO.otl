@@ -1,0 +1,29 @@
+[_] 8% v1
+	[_] 16% maildir
+		[_] 33% view
+			[X] scroll up and down
+			[_] 50% slider
+			[_] display
+				; Number|Flags|Date|From|Size|Subject
+		[_] 0% actions
+			[_] % delete
+			[_] % undelete
+			[_] % move
+			[_] % mail
+	[_] 0% message view
+		[_] % view
+			[_] % text/html
+			[_] % attachments
+		[_] % actions
+			[_] % reply to
+			[_] % group reply
+			[_] % delete
+			[_] % bounce
+	[_] 0% config format
+		; https://github.com/BurntSushi/toml
+	[_] % maildir sidebar
+			
+future
+	maildir
+		actions
+			flag as important
