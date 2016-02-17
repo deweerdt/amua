@@ -49,6 +49,7 @@ type Message struct {
 	Date    time.Time
 	path    string
 	rs      *read_state
+	size    int64
 }
 
 type ParserContext struct {
@@ -217,7 +218,11 @@ func LoadMessage(path string) (*Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	//defer f.Close()
+	fi, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
 	msg, err := mail.ReadMessage(f)
 	if err != nil {
 		return nil, err
@@ -227,6 +232,8 @@ func LoadMessage(path string) (*Message, error) {
 
 	m.Subject = mimedec(msg.Header.Get("Subject"))
 	m.Date, _ = msg.Header.Date()
+	m.size = fi.Size()
+
 	return m, nil
 }
 

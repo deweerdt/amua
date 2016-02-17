@@ -11,6 +11,32 @@ type MaildirView struct {
 	md  *Maildir
 }
 
+func size_to_human(size int64) string {
+	fs := float64(size)
+	const K = 1024
+	const M = 1024 * K
+	const G = 1024 * M
+	const T = 1024 * G
+	switch {
+	case size > T/10:
+		return fmt.Sprintf("%.1fT", fs/T)
+	case size > G/10:
+		return fmt.Sprintf("%.1fG", fs/G)
+	case size > M/10:
+		return fmt.Sprintf("%.1fM", fs/M)
+	case size > K/10:
+		return fmt.Sprintf("%.1fK", fs/K)
+	default:
+		return fmt.Sprintf("%d", size)
+	}
+}
+func trunc(s string, max_len int) string {
+	if len(s) > max_len {
+		return s[:max_len]
+	}
+	return s
+
+}
 func (mv *MaildirView) Draw(v *gocui.View) {
 	w, h := v.Size()
 	if h <= 1 {
@@ -18,9 +44,18 @@ func (mv *MaildirView) Draw(v *gocui.View) {
 	}
 
 	msgs := mv.md.messages
-	fmt_string := fmt.Sprintf("%%-%ds\n", w)
-	for _, m := range msgs {
-		fmt.Fprintf(v, fmt_string, m.Subject)
+	index_len := 6
+	size_len := 5
+	rem_w := w - index_len - size_len + 3 /* three spaces */ + 2 /* two brackets around the size */
+	from_ratio := 25
+	subj_ratio := 100 - from_ratio
+	from_len := (rem_w - 10) * from_ratio / 100.0
+	subj_len := (rem_w - 10) * subj_ratio / 100.0
+	fmt_string := fmt.Sprintf("%%-%dd %%-%ds [%%%ds] %%-%ds\n", index_len, from_len, size_len, subj_len)
+	for i, m := range msgs {
+		from := trunc(m.From, from_len)
+		subj := trunc(m.Subject, subj_len)
+		fmt.Fprintf(v, fmt_string, i, from, size_to_human(m.size), subj)
 	}
 
 }
