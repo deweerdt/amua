@@ -1,9 +1,9 @@
 [_] 8% v1
-	[_] 16% maildir
-		[_] 33% view
+	[_] 41% maildir
+		[_] 83% view
 			[X] scroll up and down
 			[_] 50% slider
-			[_] display
+			[X] display
 				; Number|Flags|Date|From|Size|Subject
 		[_] 0% actions
 			[_] % delete
@@ -14,6 +14,7 @@
 		[_] % view
 			[_] % text/html
 			[_] % attachments
+			[_] % slider
 		[_] % actions
 			[_] % reply to
 			[_] % group reply
@@ -21,8 +22,8 @@
 			[_] % bounce
 	[_] 0% config format
 		; https://github.com/BurntSushi/toml
-	[_] % maildir sidebar
-	[_] % search
+	[_] 0% maildir sidebar
+	[_] 0% search
 		: Ideas:
 		: - have search work like a series of pipes:
 		:   from foo | contains urgent | before 1m
