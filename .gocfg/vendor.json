@@ -1,5 +1,9 @@
 {
   "GitRepos": {
+    "vendor/src/github.com/BurntSushi/toml": {
+      "URI": "https://github.com/BurntSushi/toml",
+      "Ref": "5c4df71dfe9ac89ef6287afc05e4c1b16ae65a1e"
+    },
     "vendor/src/github.com/deweerdt/gocui": {
       "URI": "https://github.com/deweerdt/gocui",
       "Ref": "5ef6613f6094a51b3334713a39581e4145cf549b"

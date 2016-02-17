@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/base64"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -71,9 +72,8 @@ func get_header(i map[string][]string, header string) string {
 	h, ok := textproto.MIMEHeader(i)[textproto.CanonicalMIMEHeaderKey(header)]
 	if ok {
 		return h[0]
-	} else {
-		return ""
 	}
+	return ""
 }
 
 func PartWalker(r io.Reader, header map[string][]string, parse ParseFn, pc *ParserContext, depth int) error {
@@ -239,13 +239,14 @@ func LoadMessage(path string) (*Message, error) {
 
 func LoadMaildir(md_path string) (*Maildir, error) {
 	md := &Maildir{}
-	fis, err := ioutil.ReadDir(md_path)
+	curdir := filepath.Join(md_path, "cur")
+	fis, err := ioutil.ReadDir(curdir)
 	if err != nil {
 		return nil, err
 	}
 	msgs := make([]*Message, 0)
 	for _, fi := range fis {
-		m, err := LoadMessage(filepath.Join(md_path, fi.Name()))
+		m, err := LoadMessage(filepath.Join(curdir, fi.Name()))
 		if err != nil {
 			return nil, err
 		}
@@ -468,13 +469,25 @@ func get_layout(view *View) func(g *gocui.Gui) error {
 		return nil
 	}
 }
+
+type known_maildir struct {
+	maildir *Maildir // might be nil if not loaded
+	path    string
+}
+
 func main() {
+	var cfg_file = flag.String("config", "", "the config file")
+
+	flag.Parse()
 	usr, err := user.Current()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	cfg, err := config.NewConfig(filepath.Join(usr.HomeDir, ".yamailrc"))
+	if *cfg_file == "" {
+		*cfg_file = filepath.Join(usr.HomeDir, ".amuarc")
+	}
+	cfg, err := config.NewConfig(*cfg_file)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -482,9 +495,17 @@ func main() {
 		println(cfg)
 	}
 
-	md, err := LoadMaildir("md/cur")
-	if err != nil {
-		log.Fatal(err)
+	known_maildirs := make([]known_maildir, len(cfg.Maildirs))
+	for i, m := range cfg.Maildirs {
+		km := &known_maildirs[i]
+		if i == 0 {
+			md, err := LoadMaildir(m)
+			if err != nil {
+				log.Fatal(err)
+			}
+			km.maildir = md
+		}
+		km.path = m
 	}
 
 	g := gocui.NewGui()
@@ -493,6 +514,7 @@ func main() {
 	}
 	defer g.Close()
 
+	md := known_maildirs[0].maildir
 	view := &View{}
 	g.SetLayout(get_layout(view))
 	mdv := &MaildirView{md: md}
