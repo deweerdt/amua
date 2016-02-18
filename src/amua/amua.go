@@ -472,71 +472,51 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			return nil
 		}
 	}
-	if err := g.SetKeybinding(MAILDIR_VIEW, gocui.KeyPgup, gocui.ModNone, maildir_move(-10)); err != nil {
-		return err
+	type keybinding struct {
+		key interface{}
+		fn  gocui.KeybindingHandler
+		mod bool
 	}
-	if err := g.SetKeybinding(MAILDIR_VIEW, gocui.KeyPgdn, gocui.ModNone, maildir_move(10)); err != nil {
-		return err
+	bindings := map[string][]keybinding{
+		MAILDIR_VIEW: {
+			{gocui.KeyEnter, switchToModeInt(MessageMode), false},
+			{'c', switchToModeInt(KnownMaildirsMode), false},
+			{'q', quit, false},
+			{'G', maildir_all_down(), false},
+			{'k', maildir_move(-1), false},
+			{gocui.KeyArrowUp, maildir_move(-1), false},
+			{'j', maildir_move(1), false},
+			{gocui.KeyArrowDown, maildir_move(1), false},
+			{gocui.KeyPgdn, maildir_move(10), false},
+			{gocui.KeyPgup, maildir_move(-10), false},
+		},
+		MESSAGE_VIEW: {
+			{'q', switchToModeInt(MaildirMode), false},
+			{gocui.KeyPgup, scrollMessageView(-10), false},
+			{gocui.KeyPgdn, scrollMessageView(10), false},
+			{gocui.KeySpace, scrollMessageView(10), false},
+			{'j', scrollMessageView(1), false},
+			{'k', scrollMessageView(-1), false},
+		},
+		SIDE_VIEW: {
+			{'j', scrollSideView(amua, 1), false},
+			{gocui.KeyArrowDown, scrollSideView(amua, 1), false},
+			{'k', scrollSideView(amua, -1), false},
+			{gocui.KeyArrowUp, scrollSideView(amua, 1), false},
+			{gocui.KeyEnter, selectNewMaildir(amua), false},
+		},
+		"": {
+			{gocui.KeyCtrlC, quit, false},
+		},
 	}
-	if err := g.SetKeybinding(MAILDIR_VIEW, gocui.KeyArrowDown, gocui.ModNone, maildir_move(1)); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding(MAILDIR_VIEW, 'j', gocui.ModNone, maildir_move(1)); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding(MAILDIR_VIEW, gocui.KeyArrowUp, gocui.ModNone, maildir_move(-1)); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding(MAILDIR_VIEW, 'k', gocui.ModNone, maildir_move(-1)); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding(MAILDIR_VIEW, 'G', gocui.ModNone, maildir_all_down()); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding(MAILDIR_VIEW, 'q', gocui.ModNone, quit); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding(MAILDIR_VIEW, 'c', gocui.ModNone, switchToModeInt(KnownMaildirsMode)); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding(MAILDIR_VIEW, gocui.KeyEnter, gocui.ModNone, switchToModeInt(MessageMode)); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding(MESSAGE_VIEW, 'q', gocui.ModNone, switchToModeInt(MaildirMode)); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding(MESSAGE_VIEW, gocui.KeyPgup, gocui.ModNone, scrollMessageView(-10)); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding(MESSAGE_VIEW, gocui.KeyPgdn, gocui.ModNone, scrollMessageView(10)); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding(MESSAGE_VIEW, gocui.KeySpace, gocui.ModNone, scrollMessageView(10)); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding(MESSAGE_VIEW, 'j', gocui.ModNone, scrollMessageView(1)); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding(MESSAGE_VIEW, 'k', gocui.ModNone, scrollMessageView(-1)); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding(SIDE_VIEW, 'j', gocui.ModNone, scrollSideView(amua, 1)); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding(SIDE_VIEW, gocui.KeyArrowDown, gocui.ModNone, scrollSideView(amua, 1)); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding(SIDE_VIEW, 'k', gocui.ModNone, scrollSideView(amua, -1)); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding(SIDE_VIEW, gocui.KeyArrowUp, gocui.ModNone, scrollSideView(amua, 1)); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding(SIDE_VIEW, gocui.KeyEnter, gocui.ModNone, selectNewMaildir(amua)); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit); err != nil {
-		return err
+
+	for vn, binds := range bindings {
+		for _, b := range binds {
+			err := g.SetKeybinding(vn, b.key, gocui.ModNone, b.fn)
+			if err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
