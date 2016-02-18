@@ -33,3 +33,6 @@ future
 	maildir
 		actions
 			flag as important
+	maildir side bar
+		view
+			scrolling (hardcoded for now)
