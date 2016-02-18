@@ -196,7 +196,7 @@ func (m *Message) Read(p []byte) (int, error) {
 		m.rs.r = io.MultiReader(readers...)
 	}
 	ret, err := m.rs.r.Read(p)
-	if err == io.EOF {
+	if err != nil {
 		m.rs.done()
 		m.rs = nil
 	}
@@ -309,10 +309,10 @@ func refresh_message(amua *Amua, g *gocui.Gui) error {
 	v.SetOrigin(0, 0)
 
 	m := amua.cur_message()
-	colorstring.Fprintf(v, "[blue]Subject: %s\n", m.Subject)
+	colorstring.Fprintf(v, "[green]Subject: %s\n", m.Subject)
 	colorstring.Fprintf(v, "[red]From: %s\n", m.From)
 	colorstring.Fprintf(v, "[red]To: %s\n", m.To)
-	colorstring.Fprintf(v, "[blue]Date: %s\n", m.Date.Format("Mon, 2 Jan 2006 15:04:05 -0700"))
+	colorstring.Fprintf(v, "[green]Date: %s\n", m.Date.Format("Mon, 2 Jan 2006 15:04:05 -0700"))
 	fmt.Fprintf(v, "\n")
 	_, err = io.Copy(v, m)
 	if err != nil {
@@ -344,7 +344,7 @@ func scrollSideView(amua *Amua, dy int) func(g *gocui.Gui, v *gocui.View) error 
 	}
 }
 
-func (amua *Amua) RefreshMaildir() error {
+func (amua *Amua) RefreshMaildir(v *gocui.View) error {
 	md, err := LoadMaildir(amua.known_maildirs[amua.curMaildir].path, true)
 	if err != nil {
 		return err
@@ -352,6 +352,10 @@ func (amua *Amua) RefreshMaildir() error {
 	amua.known_maildirs[amua.curMaildir].maildir = md
 	mdv := &MaildirView{md: md}
 	amua.cur_maildir_view = mdv
+	v.SetCursor(0, 0)
+	v.SetOrigin(0, 0)
+	v.Clear()
+	amua.cur_maildir_view.Draw(v)
 	return nil
 }
 
@@ -362,7 +366,11 @@ func selectNewMaildir(amua *Amua) func(g *gocui.Gui, v *gocui.View) error {
 		selected := oy + cy
 		if amua.curMaildir != selected {
 			amua.curMaildir = selected
-			err := amua.RefreshMaildir()
+			mv, err := g.View(MAILDIR_VIEW)
+			if err != nil {
+				return err
+			}
+			err = amua.RefreshMaildir(mv)
 			if err != nil {
 				return err
 			}

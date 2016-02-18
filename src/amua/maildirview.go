@@ -42,6 +42,9 @@ func (mv *MaildirView) Draw(v *gocui.View) {
 	if h <= 1 {
 		return
 	}
+	if w <= 20 {
+		return
+	}
 
 	msgs := mv.md.messages
 	index_len := 6
