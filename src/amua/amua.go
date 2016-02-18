@@ -359,6 +359,36 @@ func (amua *Amua) RefreshMaildir(v *gocui.View) error {
 	return nil
 }
 
+func drawKnownMaildirs(amua *Amua, g *gocui.Gui, v *gocui.View) error {
+	v.Clear()
+	v.Frame = false
+	w, h := v.Size()
+	displayed := len(amua.known_maildirs)
+	if len(amua.known_maildirs) > h {
+		displayed = h
+	}
+	fillers := h - displayed
+	space := 1
+	for i := 0; i < displayed; i++ {
+		current := amua.known_maildirs[i].maildir == amua.cur_maildir_view.md
+		nr_msgs := fmt.Sprintf("(%d)", len(amua.known_maildirs[i].maildir.messages))
+		available_width := w - space - len(nr_msgs) - 3
+		strfmt := fmt.Sprintf(" %%-%ds %s ", available_width, nr_msgs)
+		str := fmt.Sprintf(strfmt, trunc(amua.known_maildirs[i].path, available_width))
+		if current {
+			colorstring.Fprintf(v, "[bold]%s", str)
+		} else {
+			fmt.Fprint(v, str)
+		}
+		fmt.Fprintf(v, strings.Repeat(" ", space-1))
+		fmt.Fprintln(v, "|")
+	}
+	for i := 0; i < fillers; i++ {
+		fmt.Fprintf(v, strings.Repeat(" ", w-1))
+		fmt.Fprintln(v, "|")
+	}
+	return nil
+}
 func selectNewMaildir(amua *Amua) func(g *gocui.Gui, v *gocui.View) error {
 	return func(g *gocui.Gui, v *gocui.View) error {
 		_, oy := v.Origin()
@@ -375,6 +405,7 @@ func selectNewMaildir(amua *Amua) func(g *gocui.Gui, v *gocui.View) error {
 				return err
 			}
 		}
+		drawKnownMaildirs(amua, g, v)
 		switchToMode(amua, g, MaildirMode)
 		return nil
 	}
@@ -518,26 +549,7 @@ func get_layout(amua *Amua) func(g *gocui.Gui) error {
 			if err != gocui.ErrUnknownView {
 				return err
 			}
-			v.Frame = false
-			w, h := v.Size()
-			displayed := len(amua.known_maildirs)
-			if len(amua.known_maildirs) > h {
-				displayed = h
-			}
-			fillers := h - displayed
-			space := 1
-			for i := 0; i < displayed; i++ {
-				nr_msgs := fmt.Sprintf("(%d)", len(amua.known_maildirs[i].maildir.messages))
-				available_width := w - space - len(nr_msgs) - 3
-				strfmt := fmt.Sprintf(" %%-%ds %s ", available_width, nr_msgs)
-				fmt.Fprintf(v, strfmt, trunc(amua.known_maildirs[i].path, available_width))
-				fmt.Fprintf(v, strings.Repeat(" ", space-1))
-				fmt.Fprintln(v, "|")
-			}
-			for i := 0; i < fillers; i++ {
-				fmt.Fprintf(v, strings.Repeat(" ", w-1))
-				fmt.Fprintln(v, "|")
-			}
+			drawKnownMaildirs(amua, g, v)
 		}
 		v, err = g.SetView(MESSAGE_VIEW, int(0.15*float32(maxX)), -1, maxX-1, maxY-1)
 		if err != nil {
