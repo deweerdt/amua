@@ -306,6 +306,7 @@ func refresh_message(amua *Amua, g *gocui.Gui) error {
 		return err
 	}
 	v.Clear()
+	v.Wrap = true
 	v.SetOrigin(0, 0)
 
 	m := amua.cur_message()
