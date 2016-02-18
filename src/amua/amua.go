@@ -379,17 +379,31 @@ func selectNewMaildir(amua *Amua) func(g *gocui.Gui, v *gocui.View) error {
 		return nil
 	}
 }
-func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
-	amua.mode = mode
-	curview := ""
-	switch amua.mode {
+func modeToView(g *gocui.Gui, mode Mode) *gocui.View {
+	v, _ := g.View(modeToViewStr(mode))
+	return v
+}
+func modeToViewStr(mode Mode) string {
+	switch mode {
 	case MaildirMode:
-		curview = MAILDIR_VIEW
+		return MAILDIR_VIEW
 	case MessageMode:
-		refresh_message(amua, g)
-		curview = MESSAGE_VIEW
+		return MESSAGE_VIEW
 	case KnownMaildirsMode:
-		curview = SIDE_VIEW
+		return SIDE_VIEW
+	}
+	return ""
+}
+func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
+	/* highlight off */
+	if amua.mode != MessageMode {
+		v := modeToView(g, amua.mode)
+		v.Highlight = false
+	}
+	amua.mode = mode
+	curview := modeToViewStr(amua.mode)
+	if amua.mode == MessageMode {
+		refresh_message(amua, g)
 	}
 	_, err := g.SetViewOnTop(curview)
 	if err != nil {
@@ -398,6 +412,11 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 	err = g.SetCurrentView(curview)
 	if err != nil {
 		return err
+	}
+	/* highlight back */
+	if amua.mode != MessageMode {
+		v := modeToView(g, amua.mode)
+		v.Highlight = true
 	}
 	return nil
 }
@@ -500,7 +519,6 @@ func get_layout(amua *Amua) func(g *gocui.Gui) error {
 				return err
 			}
 			v.Frame = false
-			v.Highlight = true
 			w, h := v.Size()
 			displayed := len(amua.known_maildirs)
 			if len(amua.known_maildirs) > h {
@@ -534,7 +552,9 @@ func get_layout(amua *Amua) func(g *gocui.Gui) error {
 				return err
 			}
 			v.Frame = false
-			v.Highlight = true
+			if amua.mode == MaildirMode {
+				v.Highlight = true
+			}
 			amua.cur_maildir_view.Draw(v)
 			err = g.SetCurrentView(MAILDIR_VIEW)
 			if err != nil {
