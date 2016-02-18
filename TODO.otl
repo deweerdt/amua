@@ -1,4 +1,4 @@
-[_] 8% v1
+[_] 38% v1
 	[_] 41% maildir
 		[_] 83% view
 			[X] scroll up and down
@@ -20,9 +20,11 @@
 			[_] % group reply
 			[_] % delete
 			[_] % bounce
-	[_] 0% config format
+	[X] 100% config format
 		; https://github.com/BurntSushi/toml
-	[_] 0% maildir sidebar
+	[_] 50% maildir sidebar
+		[X] view
+		[_] have a way to show  selection
 	[_] 0% search
 		: Ideas:
 		: - have search work like a series of pipes:
