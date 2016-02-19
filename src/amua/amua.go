@@ -34,9 +34,21 @@ type Maildir struct {
 	messages []*Message
 }
 
+type Multipart uint
+
+const (
+	// https://tools.ietf.org/html/rfc2046
+	Mixed Multipart = iota
+	Alternative
+	Digest
+	Parallel
+	// https://tools.ietf.org/html/rfc2387
+	Related
+)
+
 type read_state struct {
-	r       io.Reader
-	done    func()
+	r       io.Reader // a reader we read the email from
+	done    func()    // called when we're done with the reader
 	buffers []*bytes.Buffer
 }
 
@@ -63,6 +75,19 @@ func to_text(pc *mime.ParserContext, path []int, r io.Reader, pd mime.PartDescr)
 			return err
 		}
 		rs.buffers = append(rs.buffers, bytes.NewBuffer(buf))
+	} else {
+		if r != nil {
+			buf, err := ioutil.ReadAll(r)
+			if err != nil {
+				pc.Err = err
+				return err
+			}
+			str := fmt.Sprintf("%sPart: %s %d\n", strings.Repeat("-", len(path)), pd.MediaType, len(buf))
+			rs.buffers = append(rs.buffers, bytes.NewBufferString(str))
+		} else {
+			str := fmt.Sprintf("%sPart: %s\n", strings.Repeat("-", len(path)), pd.MediaType)
+			rs.buffers = append(rs.buffers, bytes.NewBufferString(str))
+		}
 	}
 	return nil
 }

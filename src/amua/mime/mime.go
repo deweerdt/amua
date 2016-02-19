@@ -20,6 +20,8 @@ type ParserContext struct {
 
 func ContentDispositionFromStr(s string) ContentDisposition {
 	switch s {
+	case "":
+		fallthrough
 	case "inline":
 		return CDInline
 	default:
