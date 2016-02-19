@@ -1,4 +1,4 @@
 all: bin/amua
 
 bin/amua:
-	wgo build amua
+	wgo install amua
