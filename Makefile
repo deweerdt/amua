@@ -1,4 +1,5 @@
+sources:=$(shell find src -name '*.go')
 all: bin/amua
 
-bin/amua:
+bin/amua: $(sources)
 	wgo install amua

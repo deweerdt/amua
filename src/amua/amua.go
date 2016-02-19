@@ -2,17 +2,13 @@ package main
 
 import (
 	"bytes"
-	"encoding/base64"
 	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
-	"mime"
-	"mime/multipart"
-	"mime/quotedprintable"
+	gomime "mime"
 	"net/mail"
-	"net/textproto"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -21,6 +17,7 @@ import (
 	"time"
 
 	"amua/config"
+	"amua/mime"
 
 	"github.com/deweerdt/gocui"
 	"github.com/mitchellh/colorstring"
@@ -53,118 +50,16 @@ type Message struct {
 	size    int64
 }
 
-type ParserContext struct {
-	ctx interface{}
-	err error
-}
-
-type ParseFn func(*ParserContext, io.Reader, string, map[string]string)
-
-func WalkParts(r io.Reader, parse ParseFn, pc *ParserContext, max_depth int) error {
-	msg, err := mail.ReadMessage(r)
-	if err != nil {
-		return err
-	}
-	return PartWalker(msg.Body, msg.Header, parse, pc, max_depth)
-}
-
-func get_header(i map[string][]string, header string) string {
-	h, ok := textproto.MIMEHeader(i)[textproto.CanonicalMIMEHeaderKey(header)]
-	if ok {
-		return h[0]
-	}
-	return ""
-}
-
-func PartWalker(r io.Reader, header map[string][]string, parse ParseFn, pc *ParserContext, depth int) error {
-	depth--
-	if depth < 0 {
-		return nil
-	}
-	content_type := get_header(header, "content-type")
-	media_type, params, err := mime.ParseMediaType(content_type)
-	if err != nil {
-		panic(0)
-		return err
-	}
-
-	is_multipart := true
-	boundary := ""
-	media_type = strings.ToLower(media_type)
-	if !strings.HasPrefix(media_type, "multipart/") {
-		is_multipart = false
-	} else {
-		var ok bool
-		boundary, ok = params["boundary"]
-		if !ok {
-			is_multipart = false
-		}
-	}
-
-	if is_multipart {
-		mr := multipart.NewReader(r, boundary)
-		for {
-			p, err := mr.NextPart()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return err
-			}
-			err = PartWalker(p, p.Header, parse, pc, depth)
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-
-	qp := false
-	cte := strings.ToLower(get_header(header, "Content-Transfer-Encoding"))
-
-	buf, err := ioutil.ReadAll(r)
-	if err != nil {
-		return err
-	}
-	br := bytes.NewReader(buf)
-
-	var reader io.Reader
-	switch cte {
-	case "base64":
-		reader = base64.NewDecoder(base64.StdEncoding, br)
-	case "quoted-printable":
-		qp = true
-		reader = quotedprintable.NewReader(br)
-	default:
-		reader = br
-	}
-retry:
-	decoded_buf, err := ioutil.ReadAll(reader)
-	if err != nil {
-		panic("ok")
-		if qp {
-			/* qp tends to fail often, retry in non-qp */
-			qp = false
-			br.Seek(0, 0)
-			reader = br
-			goto retry
-		}
-		return err
-	}
-	parse(pc, bytes.NewBuffer(decoded_buf), media_type, params)
-	return nil
-}
-
-func to_text(pc *ParserContext, r io.Reader, media_type string, params map[string]string) {
-	if pc.err != nil {
+func to_text(pc *mime.ParserContext, r io.Reader, media_type string, params map[string]string) {
+	if pc.Err != nil {
 		return
 	}
 	var rs *read_state
-	rs = pc.ctx.(*read_state)
+	rs = pc.Ctx.(*read_state)
 	if media_type == "text/plain" {
 		buf, err := ioutil.ReadAll(r)
 		if err != nil {
-			pc.err = err
+			pc.Err = err
 			return
 		}
 		rs.buffers = append(rs.buffers, bytes.NewBuffer(buf))
@@ -183,9 +78,9 @@ func (m *Message) Read(p []byte) (int, error) {
 		m.rs.done = func() {
 			f.Close()
 		}
-		pc := ParserContext{}
-		pc.ctx = m.rs
-		err = WalkParts(f, to_text, &pc, 10)
+		pc := mime.ParserContext{}
+		pc.Ctx = m.rs
+		err = mime.WalkParts(f, to_text, &pc, 10)
 		if err != nil {
 			return 0, err
 		}
@@ -203,7 +98,7 @@ func (m *Message) Read(p []byte) (int, error) {
 	return ret, err
 }
 
-var dec = new(mime.WordDecoder)
+var dec = new(gomime.WordDecoder)
 
 func LoadMessage(path string) (*Message, error) {
 	mimedec := func(hdr string) string {
