@@ -484,10 +484,10 @@ func TestMime(t *testing.T) {
 		}},
 	}
 	for _, onet := range tests {
-		testwalk := func(pc *ParserContext, path []int, r io.Reader, media_type string, params map[string]string) error {
+		testwalk := func(pc *ParserContext, path []int, r io.Reader, pd PartDescr) error {
 			i := pc.Ctx.(int)
 			if false {
-				fmt.Printf("%v %v\n", path, media_type)
+				fmt.Printf("%v %v\n", path, pd.MediaType)
 			}
 			if i >= len(onet.results) {
 				return nil
@@ -495,8 +495,8 @@ func TestMime(t *testing.T) {
 			if !reflect.DeepEqual(onet.results[i].path, path) {
 				t.Error(fmt.Sprintf("%v %v\n", onet.results[i].path, path))
 			}
-			if !reflect.DeepEqual(onet.results[i].media_type, media_type) {
-				t.Error(fmt.Sprintf("%v %v\n", onet.results[i].media_type, media_type))
+			if !reflect.DeepEqual(onet.results[i].media_type, pd.MediaType) {
+				t.Error(fmt.Sprintf("%v %v\n", onet.results[i].media_type, pd.MediaType))
 			}
 			pc.Ctx = i + 1
 			return nil

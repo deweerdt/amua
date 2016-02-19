@@ -18,7 +18,29 @@ type ParserContext struct {
 	Err error
 }
 
-type ParseFn func(*ParserContext, []int, io.Reader, string, map[string]string) error
+func ContentDispositionFromStr(s string) ContentDisposition {
+	switch s {
+	case "inline":
+		return CDInline
+	default:
+		return CDAttachment
+	}
+}
+
+type ContentDisposition uint
+
+const (
+	CDInline ContentDisposition = iota
+	CDAttachment
+)
+
+type PartDescr struct {
+	MediaType          string
+	Params             map[string]string
+	ContentDisposition ContentDisposition
+}
+
+type ParseFn func(*ParserContext, []int, io.Reader, PartDescr) error
 
 func WalkParts(r io.Reader, parse ParseFn, pc *ParserContext, max_depth int) error {
 	msg, err := mail.ReadMessage(r)
@@ -42,6 +64,8 @@ func partWalker(r io.Reader, path []int, header map[string][]string, parse Parse
 		return nil
 	}
 	content_type := getHeader(header, "content-type")
+	content_disposition_str := getHeader(header, "content-disposition")
+	content_disposition := ContentDispositionFromStr(content_disposition_str)
 	media_type, params, err := mime.ParseMediaType(content_type)
 	if err != nil {
 		media_type = "text/plain"
@@ -62,7 +86,7 @@ func partWalker(r io.Reader, path []int, header map[string][]string, parse Parse
 
 	part_index := 0
 	if is_multipart {
-		err = parse(pc, path, nil, media_type, params)
+		err = parse(pc, path, nil, PartDescr{media_type, params, content_disposition})
 		if err != nil {
 			return err
 		}
@@ -115,5 +139,5 @@ retry:
 		}
 		return err
 	}
-	return parse(pc, path, bytes.NewBuffer(decoded_buf), media_type, params)
+	return parse(pc, path, bytes.NewBuffer(decoded_buf), PartDescr{media_type, params, content_disposition})
 }

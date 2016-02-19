@@ -50,13 +50,13 @@ type Message struct {
 	size    int64
 }
 
-func to_text(pc *mime.ParserContext, path []int, r io.Reader, media_type string, params map[string]string) error {
+func to_text(pc *mime.ParserContext, path []int, r io.Reader, pd mime.PartDescr) error {
 	if pc.Err != nil {
 		return pc.Err
 	}
 	var rs *read_state
 	rs = pc.Ctx.(*read_state)
-	if media_type == "text/plain" {
+	if pd.MediaType == "text/plain" {
 		buf, err := ioutil.ReadAll(r)
 		if err != nil {
 			pc.Err = err
