@@ -18,7 +18,7 @@ type ParserContext struct {
 	Err error
 }
 
-type ParseFn func(*ParserContext, []int, io.Reader, string, map[string]string)
+type ParseFn func(*ParserContext, []int, io.Reader, string, map[string]string) error
 
 func WalkParts(r io.Reader, parse ParseFn, pc *ParserContext, max_depth int) error {
 	msg, err := mail.ReadMessage(r)
@@ -62,6 +62,10 @@ func partWalker(r io.Reader, path []int, header map[string][]string, parse Parse
 
 	part_index := 0
 	if is_multipart {
+		err = parse(pc, path, nil, media_type, params)
+		if err != nil {
+			return err
+		}
 		mr := multipart.NewReader(r, boundary)
 		for {
 			p, err := mr.NextPart()
@@ -102,7 +106,6 @@ func partWalker(r io.Reader, path []int, header map[string][]string, parse Parse
 retry:
 	decoded_buf, err := ioutil.ReadAll(reader)
 	if err != nil {
-		panic("ok")
 		if qp {
 			/* qp tends to fail often, retry in non-qp */
 			qp = false
@@ -112,6 +115,5 @@ retry:
 		}
 		return err
 	}
-	parse(pc, append(path, 0), bytes.NewBuffer(decoded_buf), media_type, params)
-	return nil
+	return parse(pc, path, bytes.NewBuffer(decoded_buf), media_type, params)
 }
