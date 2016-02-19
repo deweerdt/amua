@@ -18,17 +18,17 @@ type ParserContext struct {
 	Err error
 }
 
-type ParseFn func(*ParserContext, io.Reader, string, map[string]string)
+type ParseFn func(*ParserContext, []int, io.Reader, string, map[string]string)
 
 func WalkParts(r io.Reader, parse ParseFn, pc *ParserContext, max_depth int) error {
 	msg, err := mail.ReadMessage(r)
 	if err != nil {
 		return err
 	}
-	return PartWalker(msg.Body, msg.Header, parse, pc, max_depth)
+	return partWalker(msg.Body, []int{}, msg.Header, parse, pc, max_depth)
 }
 
-func get_header(i map[string][]string, header string) string {
+func getHeader(i map[string][]string, header string) string {
 	h, ok := textproto.MIMEHeader(i)[textproto.CanonicalMIMEHeaderKey(header)]
 	if ok {
 		return h[0]
@@ -36,12 +36,12 @@ func get_header(i map[string][]string, header string) string {
 	return ""
 }
 
-func PartWalker(r io.Reader, header map[string][]string, parse ParseFn, pc *ParserContext, depth int) error {
+func partWalker(r io.Reader, path []int, header map[string][]string, parse ParseFn, pc *ParserContext, depth int) error {
 	depth--
 	if depth < 0 {
 		return nil
 	}
-	content_type := get_header(header, "content-type")
+	content_type := getHeader(header, "content-type")
 	media_type, params, err := mime.ParseMediaType(content_type)
 	if err != nil {
 		media_type = "text/plain"
@@ -60,6 +60,7 @@ func PartWalker(r io.Reader, header map[string][]string, parse ParseFn, pc *Pars
 		}
 	}
 
+	part_index := 0
 	if is_multipart {
 		mr := multipart.NewReader(r, boundary)
 		for {
@@ -70,16 +71,17 @@ func PartWalker(r io.Reader, header map[string][]string, parse ParseFn, pc *Pars
 			if err != nil {
 				return err
 			}
-			err = PartWalker(p, p.Header, parse, pc, depth)
+			err = partWalker(p, append(path, part_index), p.Header, parse, pc, depth)
 			if err != nil {
 				return err
 			}
+			part_index++
 		}
 		return nil
 	}
 
 	qp := false
-	cte := strings.ToLower(get_header(header, "Content-Transfer-Encoding"))
+	cte := strings.ToLower(getHeader(header, "Content-Transfer-Encoding"))
 
 	buf, err := ioutil.ReadAll(r)
 	if err != nil {
@@ -110,6 +112,6 @@ retry:
 		}
 		return err
 	}
-	parse(pc, bytes.NewBuffer(decoded_buf), media_type, params)
+	parse(pc, append(path, 0), bytes.NewBuffer(decoded_buf), media_type, params)
 	return nil
 }

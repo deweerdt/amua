@@ -50,7 +50,7 @@ type Message struct {
 	size    int64
 }
 
-func to_text(pc *mime.ParserContext, r io.Reader, media_type string, params map[string]string) {
+func to_text(pc *mime.ParserContext, path []int, r io.Reader, media_type string, params map[string]string) {
 	if pc.Err != nil {
 		return
 	}
