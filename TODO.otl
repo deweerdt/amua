@@ -1,30 +1,38 @@
-[_] 38% v1
-	[_] 41% maildir
-		[_] 83% view
+[_] 45% v1
+	: v1 is a usable replacement for my current mutt setup:
+	: we'll use fetchmail to put messages in maildirs, and amua will monitor
+	: those maildirs
+	[_] 25% maildir
+		[_] 50% view
 			[X] scroll up and down
 			[_] 50% slider
 			[X] display
 				; Number|Flags|Date|From|Size|Subject
+			[_] refresh
+			[_] handle new and cur
+			: https://cr.yp.to/proto/maildir.html
+			: inotify is linux only, so it sounds like a dedicated goroutine
+			: will do 
 		[_] 0% actions
-			[_] % delete
-			[_] % undelete
-			[_] % move
-			[_] % mail
+			[_] 0% delete
+			[_] 0% undelete
+			[_] 0% move
+			[_] 0% mail
 	[_] 0% message view
-		[_] % view
-			[_] % text/html
-			[_] % attachments
-			[_] % slider
-		[_] % actions
-			[_] % reply to
-			[_] % group reply
-			[_] % delete
-			[_] % bounce
+		[_] 0% view
+			[_] 0% text/html
+			[_] 0% attachments
+			[_] 0% slider
+		[_] 0% actions
+			[_] 0% reply to
+			[_] 0% group reply
+			[_] 0% delete
+			[_] 0% bounce
 	[X] 100% config format
 		; https://github.com/BurntSushi/toml
-	[_] 50% maildir sidebar
+	[X] 100% maildir sidebar
 		[X] view
-		[_] have a way to show  selection
+		[X] have a way to show  selection
 	[_] 0% search
 		: Ideas:
 		: - have search work like a series of pipes:
