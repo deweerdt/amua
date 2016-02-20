@@ -1,0 +1,6 @@
+install:
+  - go get -u github.com/skelterjohn/wgo 
+
+script:
+  - make test
+  - make
