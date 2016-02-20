@@ -1,4 +1,7 @@
-install: make go
+before_install:
+  - apt-get install make go
+
+install:
   - go get -u github.com/skelterjohn/wgo 
 
 script:
