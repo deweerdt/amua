@@ -1,4 +1,4 @@
-install:
+install: make go
   - go get -u github.com/skelterjohn/wgo 
 
 script:
