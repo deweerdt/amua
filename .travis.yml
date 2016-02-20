@@ -1,5 +1,8 @@
-before_install:
-  - apt-get install make go
+addons:
+  apt:
+    packages:
+      - make
+      - go
 
 install:
   - go get -u github.com/skelterjohn/wgo 
