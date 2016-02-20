@@ -509,3 +509,94 @@ func TestMime(t *testing.T) {
 		}
 	}
 }
+
+func printM(depth int, m *MimePart) {
+	fmt.Printf("%s%s %v\n", strings.Repeat(" ", depth), MimeTypeTxt(m.MimeType), m)
+	if m.child != nil {
+		printM(depth+1, m.child)
+	}
+	for cur := m.next; cur != nil; cur = cur.next {
+		printM(depth, cur)
+	}
+}
+
+func TestMimeTree(t *testing.T) {
+	tree, err := GetMimeTree(strings.NewReader(msg2))
+	if err != nil {
+		t.Error(err.Error())
+	}
+	//for debugging
+	if false {
+		printM(0, tree)
+	}
+	cur := tree
+	check := func(m *MimePart, mi MimeTypeInt, nextSet bool, prevSet bool, childSet bool, parentSet bool) bool {
+		if m.MimeType.MimeTypeInt != mi {
+			t.Error(fmt.Sprintf("Unexpected type %v: %v", MimeTypeTxt(m.MimeType), m))
+		}
+		if cur.next == nil {
+			if nextSet {
+				t.Error(fmt.Sprintf("next should be set: %v", m))
+			}
+		} else {
+			if !nextSet {
+				t.Error(fmt.Sprintf("next should not be set: %v", m))
+			}
+		}
+		if cur.prev == nil {
+			if prevSet {
+				t.Error(fmt.Sprintf("prev should be set: %v", m))
+			}
+		} else {
+			if !prevSet {
+				t.Error(fmt.Sprintf("prev should not be set: %v", m))
+			}
+		}
+		if cur.child == nil {
+			if childSet {
+				t.Error(fmt.Sprintf("child should be set: %v", m))
+			}
+		} else {
+			if !childSet {
+				t.Error(fmt.Sprintf("child should not be set: %v", m))
+			}
+		}
+		if cur.parent == nil {
+			if parentSet {
+				t.Error(fmt.Sprintf("parent should be set: %v", m))
+			}
+		} else {
+			if !parentSet {
+				t.Error(fmt.Sprintf("parent should not be set: %v", m))
+			}
+		}
+		return true
+	}
+	check(cur, MultipartMixed, false, false, true, false)
+	cur = cur.child
+	check(cur, TextPlain, true, false, false, true)
+	cur = cur.next
+	check(cur, MultipartAlternative, false, true, true, true)
+	cur = cur.child
+	related := cur
+	check(cur, MultipartRelated, true, false, true, true)
+	cur = cur.child
+	check(cur, TextPlain, true, false, false, true)
+	cur = cur.next
+	check(cur, TextPlain, false, true, false, true)
+	cur = cur.parent
+	check(cur, MultipartRelated, true, false, true, true)
+	if cur != related {
+		t.Error("Broken tree structure")
+	}
+	cur = cur.next
+	intermediary := cur
+	check(cur, MultipartRelated, false, true, true, false)
+	cur = cur.child
+	check(cur, MimeTypeOther, true, false, false, true)
+	cur = cur.next
+	check(cur, MimeTypeOther, false, true, false, true)
+	if intermediary != cur.parent {
+		t.Error("Broken tree structure 2")
+	}
+}

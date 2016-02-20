@@ -13,6 +13,98 @@ import (
 	"strings"
 )
 
+type MimePart struct {
+	MimeType           MimeType
+	ContentDisposition ContentDisposition
+	next, prev         *MimePart
+	child, parent      *MimePart
+	buf                *bytes.Buffer
+}
+
+type MimeTreeBuilder struct {
+	root      *MimePart
+	cur       *MimePart
+	curParent *MimePart
+	prevPath  []int
+}
+
+func NewMimeType(mt MimeTypeInt) MimeType {
+	return MimeType{mt, ""}
+}
+
+func NewMimeTypeOther(s string) MimeType {
+	return MimeType{MimeTypeOther, s}
+}
+
+func buildMimeTree(pc *ParserContext, path []int, r io.Reader, pd PartDescr) error {
+	if pc.Err != nil {
+		return pc.Err
+	}
+	var mtb *MimeTreeBuilder
+	mtb = pc.Ctx.(*MimeTreeBuilder)
+	mp := MimePart{}
+	if mtb.root == nil {
+		mtb.root = &mp
+	}
+	if r != nil {
+		buf, err := ioutil.ReadAll(r)
+		if err != nil {
+			pc.Err = err
+			return err
+		}
+		mp.buf = bytes.NewBuffer(buf)
+	}
+	prev := mtb.cur
+	switch pd.MediaType {
+	case "text/plain":
+		mp.MimeType = NewMimeType(TextPlain)
+	case "text/html":
+		mp.MimeType = NewMimeType(TextHtml)
+	case "multipart/mixed":
+		mp.MimeType = NewMimeType(MultipartMixed)
+	case "multipart/alternative":
+		mp.MimeType = NewMimeType(MultipartAlternative)
+	case "multipart/digest":
+		mp.MimeType = NewMimeType(MultipartDigest)
+	case "multipart/parallel":
+		mp.MimeType = NewMimeType(MultipartParallel)
+	case "multipart/related":
+		mp.MimeType = NewMimeType(MultipartRelated)
+	default:
+		mp.MimeType = NewMimeTypeOther(pd.MediaType)
+	}
+	switch {
+	case len(path) == len(mtb.prevPath):
+		mp.prev = prev
+		if prev != nil {
+			mp.prev.next = &mp
+			mp.parent = prev.parent
+		}
+	case len(path) < len(mtb.prevPath):
+		mp.prev = prev.parent
+		mp.prev.next = &mp
+	case len(path) > len(mtb.prevPath):
+		mp.parent = prev
+		if prev != nil {
+			mp.parent.child = &mp
+		}
+	}
+	mtb.cur = &mp
+	mtb.prevPath = path
+	return nil
+}
+
+func GetMimeTree(r io.Reader) (*MimePart, error) {
+	pc := ParserContext{}
+	mtb := &MimeTreeBuilder{}
+	pc.Ctx = mtb
+	err := WalkParts(r, buildMimeTree, &pc, 10)
+	if err != nil {
+		return nil, err
+	}
+	return mtb.root, nil
+}
+
 type ParserContext struct {
 	Ctx interface{}
 	Err error
@@ -27,6 +119,43 @@ func ContentDispositionFromStr(s string) ContentDisposition {
 	default:
 		return CDAttachment
 	}
+}
+
+type MimeType struct {
+	MimeTypeInt MimeTypeInt
+	Other       string
+}
+type MimeTypeInt uint
+
+const (
+	TextPlain MimeTypeInt = iota
+	TextHtml
+	// https://tools.ietf.org/html/rfc2046
+	MultipartMixed
+	MultipartAlternative
+	MultipartDigest
+	MultipartParallel
+	// https://tools.ietf.org/html/rfc2387
+	MultipartRelated
+	MimeTypeOther
+)
+
+var mimeTypeTxt = map[MimeTypeInt]string{
+	TextPlain:            "TextPlain",
+	TextHtml:             "TextHtml",
+	MultipartMixed:       "MultipartMixed",
+	MultipartAlternative: "MultipartAlternative",
+	MultipartDigest:      "MultipartDigest",
+	MultipartParallel:    "MultipartParallel",
+	MultipartRelated:     "MultipartRelated",
+}
+
+func MimeTypeTxt(mt MimeType) string {
+	s, ok := mimeTypeTxt[mt.MimeTypeInt]
+	if ok {
+		return s
+	}
+	return mt.Other
 }
 
 type ContentDisposition uint

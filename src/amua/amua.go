@@ -34,18 +34,6 @@ type Maildir struct {
 	messages []*Message
 }
 
-type Multipart uint
-
-const (
-	// https://tools.ietf.org/html/rfc2046
-	Mixed Multipart = iota
-	Alternative
-	Digest
-	Parallel
-	// https://tools.ietf.org/html/rfc2387
-	Related
-)
-
 type read_state struct {
 	r       io.Reader // a reader we read the email from
 	done    func()    // called when we're done with the reader
