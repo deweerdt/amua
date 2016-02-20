@@ -1,10 +1,12 @@
+language: go
 addons:
   apt:
     packages:
       - make
-      - go
 
 install:
+  - export GOPATH="${TRAVIS_BUILD_DIR}/wgo/_workspace:$GOPATH"
+  - export PATH="${TRAVIS_BUILD_DIR}/wgo/_workspace/bin:$PATH"
   - go get -u github.com/skelterjohn/wgo 
 
 script:
