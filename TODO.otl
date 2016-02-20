@@ -18,6 +18,7 @@
 			[_] 0% undelete
 			[_] 0% move
 			[_] 0% mail
+			[_] 0% search /, n and N
 	[_] 0% message view
 		[_] 0% view
 			[_] 0% text/html
@@ -28,6 +29,7 @@
 			[_] 0% group reply
 			[_] 0% delete
 			[_] 0% bounce
+			[_] 0% search /, n and N
 	[X] 100% config format
 		; https://github.com/BurntSushi/toml
 	[X] 100% maildir sidebar
