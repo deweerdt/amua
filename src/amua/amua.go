@@ -20,6 +20,7 @@ import (
 	"amua/mime"
 
 	"github.com/deweerdt/gocui"
+	"github.com/jaytaylor/html2text"
 	"github.com/mitchellh/colorstring"
 )
 
@@ -49,13 +50,33 @@ type Message struct {
 	size    int64
 }
 
-func traverse(m *mime.MimePart, bufs *[]*bytes.Buffer) {
+func dehtmlize(in *bytes.Buffer) *bytes.Buffer {
+	out, err := html2text.FromReader(in)
+	if err != nil {
+		ret := &bytes.Buffer{}
+		ret.WriteString(err.Error())
+		ret.WriteString("\n")
+		if false {
+			ret.Write(in.Bytes())
+		}
+		return ret
+	}
+	ret := bytes.NewBufferString(out)
+	return ret
+}
+func traverse(m *mime.MimePart) []*bytes.Buffer {
+	ret := make([]*bytes.Buffer, 0)
 	if m.MimeType.IsMultipart() && m.Child == nil {
-		return
+		return ret
 	}
 	switch m.MimeType.MimeTypeInt {
+	case mime.MultipartDigest:
+		/* not implemented yet */
+		fallthrough
+	case mime.MultipartParallel:
+		fallthrough
 	case mime.MultipartMixed:
-		traverse(m.Child, bufs)
+		ret = append(ret, traverse(m.Child)...)
 	case mime.MultipartAlternative:
 		var plain *mime.MimePart
 		var html *mime.MimePart
@@ -69,24 +90,26 @@ func traverse(m *mime.MimePart, bufs *[]*bytes.Buffer) {
 			last = cur
 		}
 		if plain != nil {
-			*bufs = append(*bufs, plain.Buf)
+			ret = append(ret, plain.Buf)
 		} else if html != nil {
-			*bufs = append(*bufs, html.Buf)
+			ret = append(ret, dehtmlize(html.Buf))
 		} else if last != nil {
-			str := fmt.Sprintf("[--\nPart: %s\n--]\n", mime.MimeTypeTxt(last.MimeType))
-			*bufs = append(*bufs, bytes.NewBufferString(str))
+			str := fmt.Sprintf("\n\033[7m[-- Part: %s --]\n", mime.MimeTypeTxt(last.MimeType))
+			ret = append(ret, bytes.NewBufferString(str))
 		}
 	case mime.TextPlain:
-		*bufs = append(*bufs, m.Buf)
+		ret = append(ret, m.Buf)
+	case mime.TextHtml:
+		ret = append(ret, dehtmlize(m.Buf))
 	default:
-		str := fmt.Sprintf("[--\nPart: %s\n--]\n", mime.MimeTypeTxt(m.MimeType))
-		*bufs = append(*bufs, bytes.NewBufferString(str))
+		str := fmt.Sprintf("\n\033[7m[-- Part: %s --]\n", mime.MimeTypeTxt(m.MimeType))
+		ret = append(ret, bytes.NewBufferString(str))
 
 	}
 	if m.Next != nil {
-		traverse(m.Next, bufs)
+		ret = append(ret, traverse(m.Next)...)
 	}
-
+	return ret
 }
 func (m *Message) Read(p []byte) (int, error) {
 	var err error
@@ -101,9 +124,8 @@ func (m *Message) Read(p []byte) (int, error) {
 		if err != nil {
 			return 0, err
 		}
-		m.rs.buffers = make([]*bytes.Buffer, 0)
 
-		traverse(mtree, &m.rs.buffers)
+		m.rs.buffers = traverse(mtree)
 
 		readers := make([]io.Reader, len(m.rs.buffers))
 		for i, b := range m.rs.buffers {

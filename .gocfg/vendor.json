@@ -8,6 +8,10 @@
       "URI": "https://github.com/deweerdt/gocui",
       "Ref": "5ef6613f6094a51b3334713a39581e4145cf549b"
     },
+    "vendor/src/github.com/jaytaylor/html2text": {
+      "URI": "https://github.com/jaytaylor/html2text",
+      "Ref": "4936b6c2ae7f89f5eeba2473c31fd27ea8f11068"
+    },
     "vendor/src/github.com/jroimartin/gocui": {
       "URI": "https://github.com/jroimartin/gocui",
       "Ref": "a8eba6db38c8459e1bbccfe38359b0405084a4f2"
@@ -23,6 +27,10 @@
     "vendor/src/github.com/nsf/termbox-go": {
       "URI": "https://github.com/nsf/termbox-go",
       "Ref": "362329b0aa6447eadd52edd8d660ec1dff470295"
+    },
+    "vendor/src/golang.org/x/net": {
+      "URI": "https://go.googlesource.com/net",
+      "Ref": "b6d7b1396ec874c3b00f6c84cd4301a17c56c8ed"
     }
   },
   "MercurialRepos": {}
