@@ -115,6 +115,65 @@ func traverse(m *mime.MimePart) []*bytes.Buffer {
 	}
 	return ret
 }
+
+type MessageAsMimeTree Message
+
+func (m *MessageAsMimeTree) Draw(amua *Amua, g *gocui.Gui) error {
+	v, err := g.View(MESSAGE_VIEW)
+	if err != nil {
+		return err
+	}
+	v.Clear()
+	v.Wrap = true
+	v.SetOrigin(0, 0)
+
+	colorstring.Fprintf(v, "[green]Subject: %s\n", m.Subject)
+	colorstring.Fprintf(v, "[red]From: %s\n", m.From)
+	colorstring.Fprintf(v, "[red]To: %s\n", m.To)
+	colorstring.Fprintf(v, "[green]Date: %s\n", m.Date.Format("Mon, 2 Jan 2006 15:04:05 -0700"))
+	fmt.Fprintf(v, "\n")
+	_, err = io.Copy(v, m)
+	if err != nil {
+		return err
+	}
+	return nil
+
+}
+
+func (m *MessageAsMimeTree) Read(p []byte) (int, error) {
+	if m.rs == nil {
+		m.rs = &read_state{}
+		var printM func(w io.Writer, depth int, m *mime.MimePart)
+		printM = func(w io.Writer, depth int, m *mime.MimePart) {
+			fmt.Fprintf(w, "%s%s\n", strings.Repeat("-", depth), mime.MimeTypeTxt(m.MimeType))
+			if m.Child != nil {
+				printM(w, depth+1, m.Child)
+			}
+			for cur := m.Next; cur != nil; cur = cur.Next {
+				printM(w, depth, cur)
+			}
+		}
+		f, err := os.Open(m.path)
+		if err != nil {
+			return 0, err
+		}
+		defer f.Close()
+		mtree, err := mime.GetMimeTree(f, 10)
+		if err != nil {
+			return 0, err
+		}
+		buf := &bytes.Buffer{}
+		printM(buf, 0, mtree)
+		m.rs.r = buf
+
+	}
+	ret, err := m.rs.r.Read(p)
+	if err != nil {
+		m.rs = nil
+	}
+	return ret, err
+}
+
 func (m *Message) Read(p []byte) (int, error) {
 	var err error
 	if m.rs == nil {
@@ -211,8 +270,9 @@ type Mode int
 const (
 	MaildirMode       Mode = 0
 	MessageMode            = 1
-	KnownMaildirsMode      = 2
-	MaxMode                = 3
+	MessageMimeMode        = 2
+	KnownMaildirsMode      = 3
+	MaxMode                = 4
 )
 
 type Amua struct {
@@ -241,7 +301,7 @@ type MessageView struct {
 	msg *Message
 }
 
-func refresh_message(amua *Amua, g *gocui.Gui) error {
+func (m *Message) Draw(amua *Amua, g *gocui.Gui) error {
 	v, err := g.View(MESSAGE_VIEW)
 	if err != nil {
 		return err
@@ -250,7 +310,6 @@ func refresh_message(amua *Amua, g *gocui.Gui) error {
 	v.Wrap = true
 	v.SetOrigin(0, 0)
 
-	m := amua.cur_message()
 	colorstring.Fprintf(v, "[green]Subject: %s\n", m.Subject)
 	colorstring.Fprintf(v, "[red]From: %s\n", m.From)
 	colorstring.Fprintf(v, "[red]To: %s\n", m.To)
@@ -362,6 +421,8 @@ func modeToViewStr(mode Mode) string {
 		return MAILDIR_VIEW
 	case MessageMode:
 		return MESSAGE_VIEW
+	case MessageMimeMode:
+		return MESSAGE_VIEW
 	case KnownMaildirsMode:
 		return SIDE_VIEW
 	}
@@ -375,8 +436,13 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 	}
 	amua.mode = mode
 	curview := modeToViewStr(amua.mode)
-	if amua.mode == MessageMode {
-		refresh_message(amua, g)
+	switch amua.mode {
+	case MessageMode:
+		m := amua.cur_message()
+		m.Draw(amua, g)
+	case MessageMimeMode:
+		m := amua.cur_message()
+		(*MessageAsMimeTree)(m).Draw(amua, g)
 	}
 	_, err := g.SetViewOnTop(curview)
 	if err != nil {
@@ -423,6 +489,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 		MAILDIR_VIEW: {
 			{gocui.KeyEnter, switchToModeInt(MessageMode), false},
 			{'c', switchToModeInt(KnownMaildirsMode), false},
+			{'v', switchToModeInt(MessageMimeMode), false},
 			{'q', quit, false},
 			{'G', maildir_all_down(), false},
 			{'k', maildir_move(-1), false},
