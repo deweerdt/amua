@@ -37,13 +37,13 @@ func trunc(s string, max_len int) string {
 	return s
 
 }
-func (mv *MaildirView) Draw(v *gocui.View) {
+func (mv *MaildirView) Draw(v *gocui.View) error {
 	w, h := v.Size()
 	if h <= 1 {
-		return
+		return fmt.Errorf("The screen is too small")
 	}
 	if w <= 20 {
-		return
+		return fmt.Errorf("The screen is too small")
 	}
 
 	msgs := mv.md.messages
@@ -60,7 +60,7 @@ func (mv *MaildirView) Draw(v *gocui.View) {
 		subj := trunc(m.Subject, subj_len)
 		fmt.Fprintf(v, fmt_string, i, from, size_to_human(m.size), subj)
 	}
-
+	return nil
 }
 
 func (mv *MaildirView) scroll(v *gocui.View, incr int) {

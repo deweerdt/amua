@@ -155,11 +155,13 @@ func (m *MessageAsMimeTree) Read(p []byte) (int, error) {
 		}
 		f, err := os.Open(m.path)
 		if err != nil {
+			m.rs = nil
 			return 0, err
 		}
 		defer f.Close()
 		mtree, err := mime.GetMimeTree(f, 10)
 		if err != nil {
+			m.rs = nil
 			return 0, err
 		}
 		buf := &bytes.Buffer{}
@@ -180,11 +182,13 @@ func (m *Message) Read(p []byte) (int, error) {
 		m.rs = &read_state{}
 		f, err := os.Open(m.path)
 		if err != nil {
+			m.rs = nil
 			return 0, err
 		}
 		defer f.Close()
 		mtree, err := mime.GetMimeTree(f, 10)
 		if err != nil {
+			m.rs = nil
 			return 0, err
 		}
 
@@ -356,7 +360,11 @@ func (amua *Amua) RefreshMaildir(v *gocui.View) error {
 	v.SetCursor(0, 0)
 	v.SetOrigin(0, 0)
 	v.Clear()
-	amua.cur_maildir_view.Draw(v)
+	err = amua.cur_maildir_view.Draw(v)
+	if err != nil {
+		fmt.Fprintf(v, err.Error())
+	}
+
 	return nil
 }
 
@@ -439,15 +447,24 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 	}
 	amua.mode = mode
 	curview := modeToViewStr(amua.mode)
+	var err error
 	switch amua.mode {
 	case MessageMode:
 		m := amua.cur_message()
-		m.Draw(amua, g)
+		err = m.Draw(amua, g)
 	case MessageMimeMode:
 		m := amua.cur_message()
-		(*MessageAsMimeTree)(m).Draw(amua, g)
+		err = (*MessageAsMimeTree)(m).Draw(amua, g)
 	}
-	_, err := g.SetViewOnTop(curview)
+
+	if err != nil {
+		v, _ := g.View(curview)
+		if v != nil {
+			fmt.Fprintf(v, err.Error())
+		}
+		/* we printed the error, fallback */
+	}
+	_, err = g.SetViewOnTop(curview)
 	if err != nil {
 		return err
 	}
