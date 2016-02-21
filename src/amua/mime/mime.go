@@ -126,6 +126,21 @@ type MimeType struct {
 	Other       string
 }
 
+func (mt *MimeType) IsMultipart() bool {
+	switch mt.MimeTypeInt {
+	case MultipartMixed:
+		fallthrough
+	case MultipartAlternative:
+		fallthrough
+	case MultipartDigest:
+		fallthrough
+	case MultipartParallel:
+		fallthrough
+	case MultipartRelated:
+		return true
+	}
+	return false
+}
 func (mt *MimeType) Is(mti MimeTypeInt) bool {
 	return mt.MimeTypeInt == mti
 }

@@ -50,15 +50,41 @@ type Message struct {
 }
 
 func traverse(m *mime.MimePart, bufs *[]*bytes.Buffer) {
-	if m.MimeType.Is(mime.TextPlain) {
-		*bufs = append(*bufs, m.Buf)
+	if m.MimeType.IsMultipart() && m.Child == nil {
+		return
 	}
-
-	if m.Child != nil {
+	switch m.MimeType.MimeTypeInt {
+	case mime.MultipartMixed:
 		traverse(m.Child, bufs)
+	case mime.MultipartAlternative:
+		var plain *mime.MimePart
+		var html *mime.MimePart
+		var last *mime.MimePart
+		for cur := m.Child; cur != nil; cur = cur.Next {
+			if cur.MimeType.Is(mime.TextPlain) {
+				plain = cur
+			} else if cur.MimeType.Is(mime.TextHtml) {
+				html = cur
+			}
+			last = cur
+		}
+		if plain != nil {
+			*bufs = append(*bufs, plain.Buf)
+		} else if html != nil {
+			*bufs = append(*bufs, html.Buf)
+		} else if last != nil {
+			str := fmt.Sprintf("[--\nPart: %s\n--]\n", mime.MimeTypeTxt(last.MimeType))
+			*bufs = append(*bufs, bytes.NewBufferString(str))
+		}
+	case mime.TextPlain:
+		*bufs = append(*bufs, m.Buf)
+	default:
+		str := fmt.Sprintf("[--\nPart: %s\n--]\n", mime.MimeTypeTxt(m.MimeType))
+		*bufs = append(*bufs, bytes.NewBufferString(str))
+
 	}
-	for cur := m.Next; cur != nil; cur = cur.Next {
-		traverse(cur, bufs)
+	if m.Next != nil {
+		traverse(m.Next, bufs)
 	}
 
 }
