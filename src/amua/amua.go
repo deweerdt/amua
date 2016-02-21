@@ -94,8 +94,12 @@ func traverse(m *mime.MimePart) []*bytes.Buffer {
 		} else if html != nil {
 			ret = append(ret, dehtmlize(html.Buf))
 		} else if last != nil {
-			str := fmt.Sprintf("\n\033[7m[-- Part: %s --]\n", mime.MimeTypeTxt(last.MimeType))
-			ret = append(ret, bytes.NewBufferString(str))
+			if last.MimeType.IsMultipart() {
+				ret = append(ret, traverse(last)...)
+			} else {
+				str := fmt.Sprintf("\n\033[7m[-- Part: %s --]\n", mime.MimeTypeTxt(last.MimeType))
+				ret = append(ret, bytes.NewBufferString(str))
+			}
 		}
 	case mime.TextPlain:
 		ret = append(ret, m.Buf)
