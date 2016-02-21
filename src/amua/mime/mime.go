@@ -161,13 +161,13 @@ const (
 )
 
 var mimeTypeTxt = map[MimeTypeInt]string{
-	TextPlain:            "TextPlain",
-	TextHtml:             "TextHtml",
-	MultipartMixed:       "MultipartMixed",
-	MultipartAlternative: "MultipartAlternative",
-	MultipartDigest:      "MultipartDigest",
-	MultipartParallel:    "MultipartParallel",
-	MultipartRelated:     "MultipartRelated",
+	TextPlain:            "text/plain",
+	TextHtml:             "text/html",
+	MultipartMixed:       "multipart/mixed",
+	MultipartAlternative: "multipart/alternative",
+	MultipartDigest:      "multipart/digest",
+	MultipartParallel:    "multipart/parallel",
+	MultipartRelated:     "multipart/related",
 }
 
 func MimeTypeTxt(mt MimeType) string {
