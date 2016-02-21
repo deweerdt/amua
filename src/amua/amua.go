@@ -428,9 +428,12 @@ func modeToViewStr(mode Mode) string {
 	}
 	return ""
 }
+func (mode Mode) IsHighlighted() bool {
+	return mode != MessageMode && mode != MessageMimeMode
+}
 func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 	/* highlight off */
-	if amua.mode != MessageMode {
+	if amua.mode.IsHighlighted() {
 		v := modeToView(g, amua.mode)
 		v.Highlight = false
 	}
@@ -453,7 +456,7 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 		return err
 	}
 	/* highlight back */
-	if amua.mode != MessageMode {
+	if amua.mode.IsHighlighted() {
 		v := modeToView(g, amua.mode)
 		v.Highlight = true
 	}
@@ -480,6 +483,15 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			return nil
 		}
 	}
+	messageModeToggle := func(g *gocui.Gui, v *gocui.View) error {
+		switch amua.mode {
+		case MessageMode:
+			switchToMode(amua, g, MessageMimeMode)
+		case MessageMimeMode:
+			switchToMode(amua, g, MessageMode)
+		}
+		return nil
+	}
 	type keybinding struct {
 		key interface{}
 		fn  gocui.KeybindingHandler
@@ -501,6 +513,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 		},
 		MESSAGE_VIEW: {
 			{'q', switchToModeInt(MaildirMode), false},
+			{'v', messageModeToggle, false},
 			{gocui.KeyPgup, scrollMessageView(-10), false},
 			{gocui.KeyPgdn, scrollMessageView(10), false},
 			{gocui.KeySpace, scrollMessageView(10), false},
