@@ -45,6 +45,9 @@ future
 	maildir
 		actions
 			flag as important
+	message view
+		view
+			make text vs. html configurable
 	maildir side bar
 		view
 			scrolling (hardcoded for now)
