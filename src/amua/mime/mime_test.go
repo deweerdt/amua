@@ -43,27 +43,27 @@ available from our web site (http://www.mte.com/nysmpte), as is additional
 information regarding the meeting.
 
 --section delimiter
-Content-Type: multipart/alternative ; boundary="next format"
+Content-Type: multipart/alternative ; boundary="Next format"
 
---next format
-Content-Type: multipart/related ; boundary="next page" ; type="text/plain"
+--Next format
+Content-Type: multipart/related ; boundary="Next page" ; type="text/plain"
 
---next page
+--Next page
 Content-Disposition: inline; filename="text"
 
 test text
 
---next page
+--Next page
 Content-Disposition: inline; filename="text"
 
 test text
 
---next page--
---next format
+--Next page--
+--Next format
 Content-Type: multipart/related 
- ; boundary="next page" ; type="application/pdf"
+ ; boundary="Next page" ; type="application/pdf"
 
---next page
+--Next page
 Content-Type: application/pdf
 Content-Disposition: inline; filename="SMPTE 1202_1.pdf"
 Content-Transfer-Encoding: base64
@@ -348,7 +348,7 @@ DXRyYWlsZXINPDwNL1NpemUgMw0vSURbPGU4M2ZjYWUxOTJhZDdiMTBjZDFiM2I3YzMxNjE2MTll
 PjxlODNmY2FlMTkyYWQ3YjEwY2QxYjNiN2MzMTYxNjE5ZT5dDT4+DXN0YXJ0eHJlZg0xNzMNJSVF
 T0YN
 
---next page
+--Next page
 Content-Type: application/pdf
 Content-Disposition: inline; filename="SMPTE_1202_2.pdf"
 Content-Transfer-Encoding: base64
@@ -452,8 +452,8 @@ MDAwIDY1NTM1IGYgDTAwMDAwMDUxOTQgMDAwMDAgbiANMDAwMDAwNTI1OCAwMDAwMCBuIA10cmFp
 bGVyDTw8DS9TaXplIDMNL0lEWzxkM2M1NWVhNjhlZmY4OTRmYWM1M2JiMTg3MzlhOWNhMj48ZDNj
 NTVlYTY4ZWZmODk0ZmFjNTNiYjE4NzM5YTljYTI+XQ0+Pg1zdGFydHhyZWYNMTczDSUlRU9GDQ==
 
---next page--
---next format--
+--Next page--
+--Next format--
 --section delimiter--`
 
 func TestMime(t *testing.T) {
@@ -512,16 +512,16 @@ func TestMime(t *testing.T) {
 
 func printM(depth int, m *MimePart) {
 	fmt.Printf("%s%s %v\n", strings.Repeat(" ", depth), MimeTypeTxt(m.MimeType), m)
-	if m.child != nil {
-		printM(depth+1, m.child)
+	if m.Child != nil {
+		printM(depth+1, m.Child)
 	}
-	for cur := m.next; cur != nil; cur = cur.next {
+	for cur := m.Next; cur != nil; cur = cur.Next {
 		printM(depth, cur)
 	}
 }
 
 func TestMimeTree(t *testing.T) {
-	tree, err := GetMimeTree(strings.NewReader(msg2))
+	tree, err := GetMimeTree(strings.NewReader(msg2), 10)
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -530,20 +530,20 @@ func TestMimeTree(t *testing.T) {
 		printM(0, tree)
 	}
 	cur := tree
-	check := func(m *MimePart, mi MimeTypeInt, nextSet bool, prevSet bool, childSet bool, parentSet bool) bool {
+	check := func(m *MimePart, mi MimeTypeInt, NextSet bool, prevSet bool, ChildSet bool, ParentSet bool) bool {
 		if m.MimeType.MimeTypeInt != mi {
 			t.Error(fmt.Sprintf("Unexpected type %v: %v", MimeTypeTxt(m.MimeType), m))
 		}
-		if cur.next == nil {
-			if nextSet {
-				t.Error(fmt.Sprintf("next should be set: %v", m))
+		if cur.Next == nil {
+			if NextSet {
+				t.Error(fmt.Sprintf("Next should be set: %v", m))
 			}
 		} else {
-			if !nextSet {
-				t.Error(fmt.Sprintf("next should not be set: %v", m))
+			if !NextSet {
+				t.Error(fmt.Sprintf("Next should not be set: %v", m))
 			}
 		}
-		if cur.prev == nil {
+		if cur.Prev == nil {
 			if prevSet {
 				t.Error(fmt.Sprintf("prev should be set: %v", m))
 			}
@@ -552,51 +552,51 @@ func TestMimeTree(t *testing.T) {
 				t.Error(fmt.Sprintf("prev should not be set: %v", m))
 			}
 		}
-		if cur.child == nil {
-			if childSet {
-				t.Error(fmt.Sprintf("child should be set: %v", m))
+		if cur.Child == nil {
+			if ChildSet {
+				t.Error(fmt.Sprintf("Child should be set: %v", m))
 			}
 		} else {
-			if !childSet {
-				t.Error(fmt.Sprintf("child should not be set: %v", m))
+			if !ChildSet {
+				t.Error(fmt.Sprintf("Child should not be set: %v", m))
 			}
 		}
-		if cur.parent == nil {
-			if parentSet {
-				t.Error(fmt.Sprintf("parent should be set: %v", m))
+		if cur.Parent == nil {
+			if ParentSet {
+				t.Error(fmt.Sprintf("Parent should be set: %v", m))
 			}
 		} else {
-			if !parentSet {
-				t.Error(fmt.Sprintf("parent should not be set: %v", m))
+			if !ParentSet {
+				t.Error(fmt.Sprintf("Parent should not be set: %v", m))
 			}
 		}
 		return true
 	}
 	check(cur, MultipartMixed, false, false, true, false)
-	cur = cur.child
+	cur = cur.Child
 	check(cur, TextPlain, true, false, false, true)
-	cur = cur.next
+	cur = cur.Next
 	check(cur, MultipartAlternative, false, true, true, true)
-	cur = cur.child
+	cur = cur.Child
 	related := cur
 	check(cur, MultipartRelated, true, false, true, true)
-	cur = cur.child
+	cur = cur.Child
 	check(cur, TextPlain, true, false, false, true)
-	cur = cur.next
+	cur = cur.Next
 	check(cur, TextPlain, false, true, false, true)
-	cur = cur.parent
+	cur = cur.Parent
 	check(cur, MultipartRelated, true, false, true, true)
 	if cur != related {
 		t.Error("Broken tree structure")
 	}
-	cur = cur.next
+	cur = cur.Next
 	intermediary := cur
 	check(cur, MultipartRelated, false, true, true, false)
-	cur = cur.child
+	cur = cur.Child
 	check(cur, MimeTypeOther, true, false, false, true)
-	cur = cur.next
+	cur = cur.Next
 	check(cur, MimeTypeOther, false, true, false, true)
-	if intermediary != cur.parent {
+	if intermediary != cur.Parent {
 		t.Error("Broken tree structure 2")
 	}
 }

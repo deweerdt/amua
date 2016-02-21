@@ -36,7 +36,6 @@ type Maildir struct {
 
 type read_state struct {
 	r       io.Reader // a reader we read the email from
-	done    func()    // called when we're done with the reader
 	buffers []*bytes.Buffer
 }
 
@@ -50,36 +49,19 @@ type Message struct {
 	size    int64
 }
 
-func to_text(pc *mime.ParserContext, path []int, r io.Reader, pd mime.PartDescr) error {
-	if pc.Err != nil {
-		return pc.Err
+func traverse(m *mime.MimePart, bufs *[]*bytes.Buffer) {
+	if m.MimeType.Is(mime.TextPlain) {
+		*bufs = append(*bufs, m.Buf)
 	}
-	var rs *read_state
-	rs = pc.Ctx.(*read_state)
-	if pd.MediaType == "text/plain" {
-		buf, err := ioutil.ReadAll(r)
-		if err != nil {
-			pc.Err = err
-			return err
-		}
-		rs.buffers = append(rs.buffers, bytes.NewBuffer(buf))
-	} else {
-		if r != nil {
-			buf, err := ioutil.ReadAll(r)
-			if err != nil {
-				pc.Err = err
-				return err
-			}
-			str := fmt.Sprintf("%sPart: %s %d\n", strings.Repeat("-", len(path)), pd.MediaType, len(buf))
-			rs.buffers = append(rs.buffers, bytes.NewBufferString(str))
-		} else {
-			str := fmt.Sprintf("%sPart: %s\n", strings.Repeat("-", len(path)), pd.MediaType)
-			rs.buffers = append(rs.buffers, bytes.NewBufferString(str))
-		}
-	}
-	return nil
-}
 
+	if m.Child != nil {
+		traverse(m.Child, bufs)
+	}
+	for cur := m.Next; cur != nil; cur = cur.Next {
+		traverse(cur, bufs)
+	}
+
+}
 func (m *Message) Read(p []byte) (int, error) {
 	var err error
 	if m.rs == nil {
@@ -88,16 +70,15 @@ func (m *Message) Read(p []byte) (int, error) {
 		if err != nil {
 			return 0, err
 		}
-		m.rs.buffers = make([]*bytes.Buffer, 0)
-		m.rs.done = func() {
-			f.Close()
-		}
-		pc := mime.ParserContext{}
-		pc.Ctx = m.rs
-		err = mime.WalkParts(f, to_text, &pc, 10)
+		defer f.Close()
+		mtree, err := mime.GetMimeTree(f, 10)
 		if err != nil {
 			return 0, err
 		}
+		m.rs.buffers = make([]*bytes.Buffer, 0)
+
+		traverse(mtree, &m.rs.buffers)
+
 		readers := make([]io.Reader, len(m.rs.buffers))
 		for i, b := range m.rs.buffers {
 			readers[i] = b
@@ -106,7 +87,6 @@ func (m *Message) Read(p []byte) (int, error) {
 	}
 	ret, err := m.rs.r.Read(p)
 	if err != nil {
-		m.rs.done()
 		m.rs = nil
 	}
 	return ret, err

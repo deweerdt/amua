@@ -16,9 +16,9 @@ import (
 type MimePart struct {
 	MimeType           MimeType
 	ContentDisposition ContentDisposition
-	next, prev         *MimePart
-	child, parent      *MimePart
-	buf                *bytes.Buffer
+	Next, Prev         *MimePart
+	Child, Parent      *MimePart
+	Buf                *bytes.Buffer
 }
 
 type MimeTreeBuilder struct {
@@ -52,7 +52,7 @@ func buildMimeTree(pc *ParserContext, path []int, r io.Reader, pd PartDescr) err
 			pc.Err = err
 			return err
 		}
-		mp.buf = bytes.NewBuffer(buf)
+		mp.Buf = bytes.NewBuffer(buf)
 	}
 	prev := mtb.cur
 	switch pd.MediaType {
@@ -75,18 +75,18 @@ func buildMimeTree(pc *ParserContext, path []int, r io.Reader, pd PartDescr) err
 	}
 	switch {
 	case len(path) == len(mtb.prevPath):
-		mp.prev = prev
+		mp.Prev = prev
 		if prev != nil {
-			mp.prev.next = &mp
-			mp.parent = prev.parent
+			mp.Prev.Next = &mp
+			mp.Parent = prev.Parent
 		}
 	case len(path) < len(mtb.prevPath):
-		mp.prev = prev.parent
-		mp.prev.next = &mp
+		mp.Prev = prev.Parent
+		mp.Prev.Next = &mp
 	case len(path) > len(mtb.prevPath):
-		mp.parent = prev
+		mp.Parent = prev
 		if prev != nil {
-			mp.parent.child = &mp
+			mp.Parent.Child = &mp
 		}
 	}
 	mtb.cur = &mp
@@ -94,11 +94,11 @@ func buildMimeTree(pc *ParserContext, path []int, r io.Reader, pd PartDescr) err
 	return nil
 }
 
-func GetMimeTree(r io.Reader) (*MimePart, error) {
+func GetMimeTree(r io.Reader, limit int) (*MimePart, error) {
 	pc := ParserContext{}
 	mtb := &MimeTreeBuilder{}
 	pc.Ctx = mtb
-	err := WalkParts(r, buildMimeTree, &pc, 10)
+	err := WalkParts(r, buildMimeTree, &pc, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -125,6 +125,11 @@ type MimeType struct {
 	MimeTypeInt MimeTypeInt
 	Other       string
 }
+
+func (mt *MimeType) Is(mti MimeTypeInt) bool {
+	return mt.MimeTypeInt == mti
+}
+
 type MimeTypeInt uint
 
 const (
