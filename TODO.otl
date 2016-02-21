@@ -1,4 +1,4 @@
-[_] 45% v1
+[_] 48% v1
 	: v1 is a usable replacement for my current mutt setup:
 	: we'll use fetchmail to put messages in maildirs, and amua will monitor
 	: those maildirs
@@ -19,10 +19,17 @@
 			[_] 0% move
 			[_] 0% mail
 			[_] 0% search /, n and N
-	[_] 0% message view
-		[_] 0% view
-			[_] 0% text/html
+	[_] 16% message view
+		[_] 33% view
+			[X] 100% text/html
 			[_] 0% attachments
+				[_] in message attachements
+				: have a view pop up in the bottom that we can switch too, and
+				: toggle through the attachements 
+				[_] view attachments
+				: When pressing 'v' in maildir view or message view, we'll
+				: display the mime tree in the message view. 'q' will either
+				: go back to maildir view or the message view
 			[_] 0% slider
 		[_] 0% actions
 			[_] 0% reply to
