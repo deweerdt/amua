@@ -549,7 +549,9 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			{gocui.KeyArrowUp, maildir_move(-1), false},
 			{'j', maildir_move(1), false},
 			{gocui.KeyArrowDown, maildir_move(1), false},
+			{gocui.KeyCtrlF, maildir_move(10), false},
 			{gocui.KeyPgdn, maildir_move(10), false},
+			{gocui.KeyCtrlP, maildir_move(-10), false},
 			{gocui.KeyPgup, maildir_move(-10), false},
 		},
 		MESSAGE_VIEW: {
