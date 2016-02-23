@@ -32,13 +32,47 @@ func (a ByDate) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a ByDate) Less(i, j int) bool { return a[i].Date.After(a[j].Date) }
 
 type Maildir struct {
-	path     string
-	messages []*Message
+	path         string
+	messages     []*Message
+	stop_monitor chan bool
 }
 
 type read_state struct {
 	r       io.Reader // a reader we read the email from
 	buffers []*bytes.Buffer
+}
+
+type MessageFlags uint
+
+const (
+	Passed  MessageFlags = 1 << iota //Flag "P" (passed): the user has resent/forwarded/bounced this message to someone else.
+	Replied                          //Flag "R" (replied): the user has replied to this message.
+	Seen                             //Flag "S" (seen): the user has viewed this message, though perhaps he didn't read all the way through it.
+	Trashed                          //Flag "T" (trashed): the user has moved this message to the trash; the trash will be emptied by a later user action.
+	Draft                            //Flag "D" (draft): the user considers this message a draft; toggled at user discretion.
+	Flagged                          //Flag "F" (flagged): user-defined flag; toggled at user discretion.
+
+)
+
+func parseFlags(s string) MessageFlags {
+	var ret MessageFlags
+	for _, c := range s {
+		switch c {
+		case 'P':
+			ret |= Passed
+		case 'R':
+			ret |= Replied
+		case 'S':
+			ret |= Seen
+		case 'T':
+			ret |= Trashed
+		case 'D':
+			ret |= Draft
+		case 'F':
+			ret |= Flagged
+		}
+	}
+	return ret
 }
 
 type Message struct {
@@ -49,6 +83,7 @@ type Message struct {
 	path    string
 	rs      *read_state
 	size    int64
+	Flags   MessageFlags
 }
 
 func dehtmlize(in *bytes.Buffer) *bytes.Buffer {
@@ -262,11 +297,43 @@ func LoadMessage(path string) (*Message, error) {
 	m.Date, _ = msg.Header.Date()
 	m.size = fi.Size()
 
+	i := strings.LastIndex(path, ":2,")
+	if i != -1 {
+		m.Flags = parseFlags(path[i+3:])
+	}
 	return m, nil
+}
+
+func processNew(md *Maildir, deep_load bool) error {
+	curdir := filepath.Join(md.path, "cur")
+	newdir := filepath.Join(md.path, "new")
+	fis, err := ioutil.ReadDir(newdir)
+	if err != nil {
+		return err
+	}
+	for _, fi := range fis {
+		old_name := fi.Name()
+		new_name := fmt.Sprintf("%s:2,", old_name)
+		err := os.Rename(filepath.Join(newdir, old_name), filepath.Join(curdir, new_name))
+		if err != nil {
+			return err
+		}
+		if deep_load {
+			m, err := LoadMessage(filepath.Join(curdir, new_name))
+			if err != nil {
+				return err
+			}
+			md.messages = append(md.messages, m)
+		} else {
+			md.messages = append(md.messages, &Message{path: filepath.Join(curdir, new_name)})
+		}
+	}
+	return nil
 }
 
 func LoadMaildir(md_path string, deep_load bool) (*Maildir, error) {
 	md := &Maildir{}
+	md.path = md_path
 	curdir := filepath.Join(md_path, "cur")
 	fis, err := ioutil.ReadDir(curdir)
 	if err != nil {
@@ -286,6 +353,11 @@ func LoadMaildir(md_path string, deep_load bool) (*Maildir, error) {
 
 	}
 	md.messages = msgs
+	err = processNew(md, deep_load)
+	if err != nil {
+		panic(err)
+	}
+
 	return md, nil
 }
 
