@@ -64,6 +64,10 @@ func dehtmlize(in *bytes.Buffer) *bytes.Buffer {
 	ret := bytes.NewBufferString(out)
 	return ret
 }
+func partSummary(m *mime.MimePart) *bytes.Buffer {
+	str := fmt.Sprintf("\n\033[7m[-- Part: %s --]\n", mime.MimeTypeTxt(m.MimeType))
+	return bytes.NewBufferString(str)
+}
 func traverse(m *mime.MimePart) []*bytes.Buffer {
 	ret := make([]*bytes.Buffer, 0)
 	if m.MimeType.IsMultipart() && m.Child == nil {
@@ -90,24 +94,38 @@ func traverse(m *mime.MimePart) []*bytes.Buffer {
 			last = cur
 		}
 		if plain != nil {
-			ret = append(ret, plain.Buf)
+			if plain.ContentDisposition == mime.CDInline {
+				ret = append(ret, plain.Buf)
+			} else {
+				ret = append(ret, partSummary(plain))
+			}
 		} else if html != nil {
-			ret = append(ret, dehtmlize(html.Buf))
+			if html.ContentDisposition == mime.CDInline {
+				ret = append(ret, dehtmlize(html.Buf))
+			} else {
+				ret = append(ret, partSummary(html))
+			}
 		} else if last != nil {
 			if last.MimeType.IsMultipart() {
 				ret = append(ret, traverse(last)...)
 			} else {
-				str := fmt.Sprintf("\n\033[7m[-- Part: %s --]\n", mime.MimeTypeTxt(last.MimeType))
-				ret = append(ret, bytes.NewBufferString(str))
+				ret = append(ret, partSummary(last))
 			}
 		}
 	case mime.TextPlain:
-		ret = append(ret, m.Buf)
+		if m.ContentDisposition == mime.CDInline {
+			ret = append(ret, m.Buf)
+		} else {
+			ret = append(ret, partSummary(m))
+		}
 	case mime.TextHtml:
-		ret = append(ret, dehtmlize(m.Buf))
+		if m.ContentDisposition == mime.CDInline {
+			ret = append(ret, dehtmlize(m.Buf))
+		} else {
+			ret = append(ret, partSummary(m))
+		}
 	default:
-		str := fmt.Sprintf("\n\033[7m[-- Part: %s --]\n", mime.MimeTypeTxt(m.MimeType))
-		ret = append(ret, bytes.NewBufferString(str))
+		ret = append(ret, partSummary(m))
 
 	}
 	if m.Next != nil {

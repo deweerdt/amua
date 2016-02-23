@@ -43,6 +43,7 @@ func buildMimeTree(pc *ParserContext, path []int, r io.Reader, pd PartDescr) err
 	var mtb *MimeTreeBuilder
 	mtb = pc.Ctx.(*MimeTreeBuilder)
 	mp := MimePart{}
+	mp.ContentDisposition = pd.ContentDisposition
 	if mtb.root == nil {
 		mtb.root = &mp
 	}
