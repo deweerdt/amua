@@ -16,6 +16,7 @@ import (
 type MimePart struct {
 	MimeType           MimeType
 	ContentDisposition ContentDisposition
+	Name               string
 	Next, Prev         *MimePart
 	Child, Parent      *MimePart
 	Buf                *bytes.Buffer
@@ -43,6 +44,10 @@ func buildMimeTree(pc *ParserContext, path []int, r io.Reader, pd PartDescr) err
 	var mtb *MimeTreeBuilder
 	mtb = pc.Ctx.(*MimeTreeBuilder)
 	mp := MimePart{}
+	name, ok := pd.CDParams["filename"]
+	if ok {
+		mp.Name = name
+	}
 	mp.ContentDisposition = pd.ContentDisposition
 	if mtb.root == nil {
 		mtb.root = &mp
@@ -190,6 +195,7 @@ type PartDescr struct {
 	MediaType          string
 	Params             map[string]string
 	ContentDisposition ContentDisposition
+	CDParams           map[string]string
 }
 
 type ParseFn func(*ParserContext, []int, io.Reader, PartDescr) error
@@ -215,9 +221,16 @@ func partWalker(r io.Reader, path []int, header map[string][]string, parse Parse
 	if depth < 0 {
 		return nil
 	}
+	cds := getHeader(header, "content-disposition")
+	content_disposition_str, cd_params, err := mime.ParseMediaType(cds)
+	var content_disposition ContentDisposition
+	if err != nil {
+		content_disposition = CDInline
+	} else {
+		content_disposition = ContentDispositionFromStr(content_disposition_str)
+	}
+
 	content_type := getHeader(header, "content-type")
-	content_disposition_str := getHeader(header, "content-disposition")
-	content_disposition := ContentDispositionFromStr(content_disposition_str)
 	media_type, params, err := mime.ParseMediaType(content_type)
 	if err != nil {
 		media_type = "text/plain"
@@ -238,7 +251,7 @@ func partWalker(r io.Reader, path []int, header map[string][]string, parse Parse
 
 	part_index := 0
 	if is_multipart {
-		err = parse(pc, path, nil, PartDescr{media_type, params, content_disposition})
+		err = parse(pc, path, nil, PartDescr{media_type, params, content_disposition, cd_params})
 		if err != nil {
 			return err
 		}
@@ -291,5 +304,5 @@ retry:
 		}
 		return err
 	}
-	return parse(pc, path, bytes.NewBuffer(decoded_buf), PartDescr{media_type, params, content_disposition})
+	return parse(pc, path, bytes.NewBuffer(decoded_buf), PartDescr{media_type, params, content_disposition, cd_params})
 }

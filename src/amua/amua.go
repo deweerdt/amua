@@ -18,6 +18,7 @@ import (
 
 	"amua/config"
 	"amua/mime"
+	"amua/util"
 
 	"github.com/deweerdt/gocui"
 	"github.com/jaytaylor/html2text"
@@ -65,7 +66,12 @@ func dehtmlize(in *bytes.Buffer) *bytes.Buffer {
 	return ret
 }
 func partSummary(m *mime.MimePart) *bytes.Buffer {
-	str := fmt.Sprintf("\n\033[7m[-- Part: %s --]\n", mime.MimeTypeTxt(m.MimeType))
+	name := ""
+	if m.Name != "" {
+		name = fmt.Sprintf("- %s ", m.Name)
+	}
+
+	str := fmt.Sprintf("\n\033[7m[-- %s %s- (%s) --]\n", mime.MimeTypeTxt(m.MimeType), name, util.SiteToHuman(int64(m.Buf.Len())))
 	return bytes.NewBufferString(str)
 }
 func traverse(m *mime.MimePart) []*bytes.Buffer {
@@ -401,7 +407,7 @@ func drawKnownMaildirs(amua *Amua, g *gocui.Gui, v *gocui.View) error {
 		nr_msgs := fmt.Sprintf("(%d)", len(amua.known_maildirs[i].maildir.messages))
 		available_width := w - space - len(nr_msgs) - 3
 		strfmt := fmt.Sprintf(" %%-%ds %s ", available_width, nr_msgs)
-		str := fmt.Sprintf(strfmt, trunc(amua.known_maildirs[i].path, available_width))
+		str := fmt.Sprintf(strfmt, util.TruncateString(amua.known_maildirs[i].path, available_width))
 		if current {
 			colorstring.Fprintf(v, "[bold]%s", str)
 		} else {

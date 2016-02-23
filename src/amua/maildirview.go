@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 
+	"amua/util"
+
 	"github.com/deweerdt/gocui"
 )
 
@@ -11,32 +13,6 @@ type MaildirView struct {
 	md  *Maildir
 }
 
-func size_to_human(size int64) string {
-	fs := float64(size)
-	const K = 1024
-	const M = 1024 * K
-	const G = 1024 * M
-	const T = 1024 * G
-	switch {
-	case size > T/10:
-		return fmt.Sprintf("%.1fT", fs/T)
-	case size > G/10:
-		return fmt.Sprintf("%.1fG", fs/G)
-	case size > M/10:
-		return fmt.Sprintf("%.1fM", fs/M)
-	case size > K/10:
-		return fmt.Sprintf("%.1fK", fs/K)
-	default:
-		return fmt.Sprintf("%d", size)
-	}
-}
-func trunc(s string, max_len int) string {
-	if len(s) > max_len {
-		return s[:max_len]
-	}
-	return s
-
-}
 func (mv *MaildirView) Draw(v *gocui.View) error {
 	w, h := v.Size()
 	if h <= 1 {
@@ -56,9 +32,9 @@ func (mv *MaildirView) Draw(v *gocui.View) error {
 	subj_len := (rem_w - 10) * subj_ratio / 100.0
 	fmt_string := fmt.Sprintf("%%-%dd %%-%ds [%%%ds] %%-%ds\n", index_len, from_len, size_len, subj_len)
 	for i, m := range msgs {
-		from := trunc(m.From, from_len)
-		subj := trunc(m.Subject, subj_len)
-		fmt.Fprintf(v, fmt_string, i, from, size_to_human(m.size), subj)
+		from := util.TruncateString(m.From, from_len)
+		subj := util.TruncateString(m.Subject, subj_len)
+		fmt.Fprintf(v, fmt_string, i, from, util.SiteToHuman(m.size), subj)
 	}
 	return nil
 }
