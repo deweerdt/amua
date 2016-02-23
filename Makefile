@@ -8,3 +8,8 @@ bin/amua: $(sources)
 test:
 	wgo restore
 	wgo test -v amua/mime
+
+.PHONY: tags
+tags:
+	gotags -R src > tags
+	gotags -R vendor/src >> tags
