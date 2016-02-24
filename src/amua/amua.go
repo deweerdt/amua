@@ -54,6 +54,26 @@ const (
 
 )
 
+func flagsToString(f MessageFlags) string {
+	ret := make([]byte, 4)
+	if (f & Seen) == 0 {
+		ret[0] = 'N'
+	} else if (f & Replied) != 0 {
+		ret[0] = 'r'
+	} else if (f & Passed) != 0 {
+		ret[0] = 'p'
+	}
+	if (f & Trashed) != 0 {
+		ret[1] = 'T'
+	}
+	if (f & Draft) != 0 {
+		ret[2] = 'D'
+	}
+	if (f & Flagged) != 0 {
+		ret[3] = '!'
+	}
+	return string(ret)
+}
 func parseFlags(s string) MessageFlags {
 	var ret MessageFlags
 	for _, c := range s {
@@ -455,7 +475,6 @@ func (amua *Amua) RefreshMaildir(v *gocui.View) error {
 	amua.cur_maildir_view = mdv
 	v.SetCursor(0, 0)
 	v.SetOrigin(0, 0)
-	v.Clear()
 	err = amua.cur_maildir_view.Draw(v)
 	if err != nil {
 		fmt.Fprintf(v, err.Error())
@@ -547,10 +566,14 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 	switch amua.mode {
 	case MessageMode:
 		m := amua.cur_message()
+		m.Flags |= Seen
 		err = m.Draw(amua, g)
 	case MessageMimeMode:
 		m := amua.cur_message()
 		err = (*MessageAsMimeTree)(m).Draw(amua, g)
+	case MaildirMode:
+		v, _ := g.View(curview)
+		err = amua.cur_maildir_view.Draw(v)
 	}
 
 	if err != nil {
