@@ -1,15 +1,15 @@
-[_] 48% v1
+[_] 52% v1
 	: v1 is a usable replacement for my current mutt setup:
 	: we'll use fetchmail to put messages in maildirs, and amua will monitor
 	: those maildirs
-	[_] 25% maildir
-		[_] 50% view
+	[_] 45% maildir
+		[_] 90% view
 			[X] scroll up and down
 			[_] 50% slider
 			[X] display
 				; Number|Flags|Date|From|Size|Subject
-			[_] refresh
-			[_] handle new and cur
+			[X] refresh
+			[X] handle new and cur
 			: https://cr.yp.to/proto/maildir.html
 			: inotify is linux only, so it sounds like a dedicated goroutine
 			: will do 
