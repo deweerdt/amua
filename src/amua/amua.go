@@ -32,9 +32,27 @@ func (a ByDate) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a ByDate) Less(i, j int) bool { return a[i].Date.After(a[j].Date) }
 
 type Maildir struct {
-	path         string
-	messages     []*Message
-	stop_monitor chan bool
+	path     string
+	messages []*Message
+}
+
+type onMaildirChangeFn func(*known_maildir)
+
+func (km *known_maildir) Start(onChange onMaildirChangeFn) {
+	for {
+		select {
+		case <-km.stop_monitor:
+			return
+		case <-time.After(time.Second * 1):
+			changed, _ := processNew(km.maildir, km.active)
+			if changed {
+				onChange(km)
+			}
+		}
+	}
+}
+func (km *known_maildir) Stop() {
+	km.stop_monitor <- true
 }
 
 type read_state struct {
@@ -324,34 +342,36 @@ func LoadMessage(path string) (*Message, error) {
 	return m, nil
 }
 
-func processNew(md *Maildir, deep_load bool) error {
+func processNew(md *Maildir, active bool) (bool, error) {
 	curdir := filepath.Join(md.path, "cur")
 	newdir := filepath.Join(md.path, "new")
 	fis, err := ioutil.ReadDir(newdir)
+	changed := false
 	if err != nil {
-		return err
+		return false, err
 	}
 	for _, fi := range fis {
 		old_name := fi.Name()
 		new_name := fmt.Sprintf("%s:2,", old_name)
 		err := os.Rename(filepath.Join(newdir, old_name), filepath.Join(curdir, new_name))
 		if err != nil {
-			return err
+			return false, err
 		}
-		if deep_load {
+		if active {
 			m, err := LoadMessage(filepath.Join(curdir, new_name))
 			if err != nil {
-				return err
+				return false, err
 			}
 			md.messages = append(md.messages, m)
 		} else {
 			md.messages = append(md.messages, &Message{path: filepath.Join(curdir, new_name)})
 		}
+		changed = true
 	}
-	return nil
+	return changed, nil
 }
 
-func LoadMaildir(md_path string, deep_load bool) (*Maildir, error) {
+func LoadMaildir(md_path string, active bool) (*Maildir, error) {
 	md := &Maildir{}
 	md.path = md_path
 	curdir := filepath.Join(md_path, "cur")
@@ -361,7 +381,7 @@ func LoadMaildir(md_path string, deep_load bool) (*Maildir, error) {
 	}
 	msgs := make([]*Message, len(fis))
 	for i, fi := range fis {
-		if deep_load {
+		if active {
 			m, err := LoadMessage(filepath.Join(curdir, fi.Name()))
 			if err != nil {
 				return nil, err
@@ -373,7 +393,7 @@ func LoadMaildir(md_path string, deep_load bool) (*Maildir, error) {
 
 	}
 	md.messages = msgs
-	err = processNew(md, deep_load)
+	_, err = processNew(md, active)
 	if err != nil {
 		panic(err)
 	}
@@ -519,6 +539,7 @@ func selectNewMaildir(amua *Amua) func(g *gocui.Gui, v *gocui.View) error {
 		_, cy := v.Cursor()
 		selected := oy + cy
 		if amua.curMaildir != selected {
+			amua.known_maildirs[amua.curMaildir].active = false
 			amua.curMaildir = selected
 			mv, err := g.View(MAILDIR_VIEW)
 			if err != nil {
@@ -741,26 +762,31 @@ func get_layout(amua *Amua) func(g *gocui.Gui) error {
 }
 
 type known_maildir struct {
-	maildir *Maildir // might be nil if not loaded
-	path    string
+	maildir      *Maildir // might be nil if not loaded
+	path         string
+	stop_monitor chan bool
+	active       bool //true if the maildir is actively being displayed, only one is at a given time
 }
 
-func init_known_maildirs(maildirs []string) ([]known_maildir, error) {
+func init_known_maildirs(maildirs []string, onChange onMaildirChangeFn) ([]known_maildir, error) {
 	known_maildirs := make([]known_maildir, len(maildirs))
 	for i, m := range maildirs {
 		var err error
 		var md *Maildir
 		km := &known_maildirs[i]
+		active := false
 		if i == 0 {
-			md, err = LoadMaildir(m, true)
-		} else {
-			md, err = LoadMaildir(m, false)
+			active = true
 		}
+		md, err = LoadMaildir(m, active)
 		if err != nil {
 			return nil, err
 		}
 		km.maildir = md
 		km.path = m
+		km.stop_monitor = make(chan bool)
+		km.active = active
+		go km.Start(onChange)
 	}
 	return known_maildirs, nil
 }
@@ -783,10 +809,6 @@ func main() {
 	}
 
 	amua := &Amua{}
-	amua.known_maildirs, err = init_known_maildirs(cfg.Maildirs)
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	g := gocui.NewGui()
 	if err := g.Init(); err != nil {
@@ -794,6 +816,26 @@ func main() {
 	}
 	defer g.Close()
 
+	onchange := func(km *known_maildir) {
+		g.Execute(func(g *gocui.Gui) error {
+			mv, err := g.View(MAILDIR_VIEW)
+			if err != nil {
+				return err
+			}
+			err = amua.RefreshMaildir(mv)
+			if err != nil {
+				return err
+			}
+			v, _ := g.View(SIDE_VIEW)
+			drawKnownMaildirs(amua, g, v)
+			return nil
+		})
+	}
+
+	amua.known_maildirs, err = init_known_maildirs(cfg.Maildirs, onchange)
+	if err != nil {
+		log.Fatal(err)
+	}
 	amua.curMaildir = 0
 	md := amua.known_maildirs[amua.curMaildir].maildir
 	g.SetLayout(get_layout(amua))
