@@ -712,6 +712,12 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			}
 			for i := 0; i < len(amua.cur_maildir_view.md.messages); i++ {
 				idx := ((direction * i) + amua.cur_maildir_view.cur + direction) % len(amua.cur_maildir_view.md.messages)
+				if idx < 0 {
+					idx = len(amua.cur_maildir_view.md.messages) + idx
+				}
+				if idx < 0 {
+					panic(idx)
+				}
 				m := amua.get_message(idx)
 				if strings.Contains(m.Subject, amua.searchPattern) {
 					setStatus("Found: " + amua.searchPattern + " in " + amua.cur_maildir_view.md.path)

@@ -25,6 +25,8 @@ func (mv *MaildirView) Draw(v *gocui.View) error {
 
 	xo, _ := v.Origin()
 	v.SetOrigin(xo, mv.cur)
+	xc, _ := v.Cursor()
+	v.SetCursor(xc, 0)
 	msgs := mv.md.messages
 	flags_len := 5
 	index_len := 6
