@@ -295,7 +295,8 @@ func (m *Message) Read(p []byte) (int, error) {
 
 		readers := make([]io.Reader, len(m.rs.buffers))
 		for i, b := range m.rs.buffers {
-			readers[i] = b
+			newb := bytes.Replace(b.Bytes(), []byte("\r\n"), []byte("\n"), -1)
+			readers[i] = bytes.NewBuffer(newb)
 		}
 		m.rs.r = io.MultiReader(readers...)
 	}
