@@ -411,11 +411,12 @@ func (md *Maildir) SortByDate() {
 type Mode int
 
 const (
-	MaildirMode       Mode = 0
-	MessageMode            = 1
-	MessageMimeMode        = 2
-	KnownMaildirsMode      = 3
-	MaxMode                = 4
+	MaildirMode Mode = iota
+	MessageMode
+	MessageMimeMode
+	KnownMaildirsMode
+	CommandMode
+	MaxMode
 )
 
 type Amua struct {
@@ -424,10 +425,14 @@ type Amua struct {
 	cur_message_view *MessageView
 	known_maildirs   []known_maildir
 	curMaildir       int
+	searchPattern    string
 }
 
+func (amua *Amua) get_message(idx int) *Message {
+	return amua.cur_maildir_view.md.messages[idx]
+}
 func (amua *Amua) cur_message() *Message {
-	return amua.cur_maildir_view.md.messages[amua.cur_maildir_view.cur]
+	return amua.get_message(amua.cur_maildir_view.cur)
 }
 func quit(g *gocui.Gui, v *gocui.View) error {
 	return gocui.ErrQuit
@@ -572,12 +577,48 @@ func modeToViewStr(mode Mode) string {
 		return MESSAGE_VIEW
 	case KnownMaildirsMode:
 		return SIDE_VIEW
+	case CommandMode:
+		return STATUS_VIEW
 	}
 	return ""
 }
 func (mode Mode) IsHighlighted() bool {
 	return mode != MessageMode && mode != MessageMimeMode
 }
+
+var prompt = "Enter a command: "
+var promptLength = len(prompt)
+
+func commandEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
+	// simpleEditor is used as the default gocui editor.
+	switch {
+	case ch != 0 && mod == 0:
+		v.EditWrite(ch)
+	case key == gocui.KeySpace:
+		v.EditWrite(' ')
+	case key == gocui.KeyBackspace || key == gocui.KeyBackspace2:
+		xc, _ := v.Cursor()
+		if xc <= promptLength {
+			return
+		}
+		v.EditDelete(true)
+	case key == gocui.KeyDelete:
+		xc, _ := v.Cursor()
+		if xc <= promptLength {
+			return
+		}
+		v.EditDelete(false)
+	case key == gocui.KeyArrowLeft:
+		xc, _ := v.Cursor()
+		if xc <= promptLength {
+			return
+		}
+		v.MoveCursor(-1, 0, false)
+	case key == gocui.KeyArrowRight:
+		v.MoveCursor(1, 0, false)
+	}
+}
+
 func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 	/* highlight off */
 	if amua.mode.IsHighlighted() {
@@ -598,6 +639,15 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 	case MaildirMode:
 		v, _ := g.View(curview)
 		err = amua.cur_maildir_view.Draw(v)
+	case CommandMode:
+		v, _ := g.View(curview)
+		v.Clear()
+		v.SetOrigin(0, 0)
+		v.SetCursor(0, 0)
+		v.Editable = true
+		fmt.Fprintf(v, prompt)
+		cx, cy := v.Cursor()
+		v.SetCursor(cx+promptLength+1, cy)
 	}
 
 	if err != nil {
@@ -652,6 +702,47 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 		}
 		return nil
 	}
+	search := func(forward bool) func(g *gocui.Gui, v *gocui.View) error {
+		return func(g *gocui.Gui, v *gocui.View) error {
+			setStatus("Looking for: " + amua.searchPattern + " in " + amua.cur_maildir_view.md.path)
+			found := false
+			direction := 1
+			if forward == false {
+				direction = -1
+			}
+			for i := 0; i < len(amua.cur_maildir_view.md.messages); i++ {
+				idx := ((direction * i) + amua.cur_maildir_view.cur + direction) % len(amua.cur_maildir_view.md.messages)
+				m := amua.get_message(idx)
+				if strings.Contains(m.Subject, amua.searchPattern) {
+					setStatus("Found: " + amua.searchPattern + " in " + amua.cur_maildir_view.md.path)
+					found = true
+					amua.cur_maildir_view.cur = idx
+					break
+				}
+			}
+			if found {
+				mv, err := g.View(MAILDIR_VIEW)
+				if err != nil {
+					return err
+				}
+				err = amua.cur_maildir_view.Draw(mv)
+				if err != nil {
+					fmt.Fprintf(v, err.Error())
+				}
+			}
+			return nil
+		}
+	}
+	enterSearch := func(g *gocui.Gui, v *gocui.View) error {
+		v.Rewind()
+		spbuf, err := ioutil.ReadAll(v)
+		if err != nil {
+			return err
+		}
+		amua.searchPattern = strings.TrimSpace(string(spbuf[promptLength:]))
+		switchToMode(amua, g, MaildirMode)
+		return nil
+	}
 	type keybinding struct {
 		key interface{}
 		fn  gocui.KeybindingHandler
@@ -667,11 +758,14 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			{'k', maildir_move(-1), false},
 			{gocui.KeyArrowUp, maildir_move(-1), false},
 			{'j', maildir_move(1), false},
+			{'n', search(true), false},
+			{'N', search(false), false},
 			{gocui.KeyArrowDown, maildir_move(1), false},
 			{gocui.KeyCtrlF, maildir_move(10), false},
 			{gocui.KeyPgdn, maildir_move(10), false},
 			{gocui.KeyCtrlB, maildir_move(-10), false},
 			{gocui.KeyPgup, maildir_move(-10), false},
+			{'/', switchToModeInt(CommandMode), false},
 		},
 		MESSAGE_VIEW: {
 			{'q', switchToModeInt(MaildirMode), false},
@@ -681,6 +775,9 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			{gocui.KeySpace, scrollMessageView(10), false},
 			{'j', scrollMessageView(1), false},
 			{'k', scrollMessageView(-1), false},
+		},
+		STATUS_VIEW: {
+			{gocui.KeyEnter, enterSearch, false},
 		},
 		SIDE_VIEW: {
 			{'j', scrollSideView(amua, 1), false},
@@ -704,6 +801,8 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 	}
 	return nil
 }
+
+var setStatus func(s string)
 
 func get_layout(amua *Amua) func(g *gocui.Gui) error {
 	return func(g *gocui.Gui) error {
@@ -755,10 +854,7 @@ func get_layout(amua *Amua) func(g *gocui.Gui) error {
 			if err != gocui.ErrUnknownView {
 				return err
 			}
-			w, _ := v.Size()
 			v.Frame = false
-			format := fmt.Sprintf("\033[7m%%-%ds\033[0m", w)
-			fmt.Fprintf(v, format, "Loaded all messages")
 		}
 		return nil
 	}
@@ -817,6 +913,7 @@ func main() {
 	if err := g.Init(); err != nil {
 		log.Panicln(err)
 	}
+	g.Editor = gocui.EditorFunc(commandEditor)
 	defer g.Close()
 
 	onchange := func(km *known_maildir) {
@@ -849,6 +946,13 @@ func main() {
 		log.Panicln(err)
 	}
 
+	setStatus = func(s string) {
+		v, _ := g.View(STATUS_VIEW)
+		w, _ := v.Size()
+		v.Clear()
+		format := fmt.Sprintf("\033[7m%%-%ds\033[0m", w)
+		fmt.Fprintf(v, format, s)
+	}
 	if err := g.MainLoop(); err != nil && err != gocui.ErrQuit {
 		log.Panicln(err)
 	}

@@ -23,6 +23,8 @@ func (mv *MaildirView) Draw(v *gocui.View) error {
 		return fmt.Errorf("The screen is too small")
 	}
 
+	xo, _ := v.Origin()
+	v.SetOrigin(xo, mv.cur)
 	msgs := mv.md.messages
 	flags_len := 5
 	index_len := 6
