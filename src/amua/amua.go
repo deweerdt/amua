@@ -625,6 +625,7 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 		v := modeToView(g, amua.mode)
 		v.Highlight = false
 	}
+	prev_mode := amua.mode
 	amua.mode = mode
 	curview := modeToViewStr(amua.mode)
 	var err error
@@ -638,7 +639,9 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 		err = (*MessageAsMimeTree)(m).Draw(amua, g)
 	case MaildirMode:
 		v, _ := g.View(curview)
-		err = amua.cur_maildir_view.Draw(v)
+		if prev_mode != MessageMimeMode && prev_mode != MessageMode {
+			err = amua.cur_maildir_view.Draw(v)
+		}
 	case CommandMode:
 		v, _ := g.View(curview)
 		v.Clear()
