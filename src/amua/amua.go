@@ -158,6 +158,8 @@ func traverse(m *mime.MimePart) []*bytes.Buffer {
 		fallthrough
 	case mime.MultipartParallel:
 		fallthrough
+	case mime.MultipartRelated:
+		fallthrough
 	case mime.MultipartMixed:
 		ret = append(ret, traverse(m.Child)...)
 	case mime.MultipartAlternative:
