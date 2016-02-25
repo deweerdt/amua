@@ -88,7 +88,9 @@ func buildMimeTree(pc *ParserContext, path []int, r io.Reader, pd PartDescr) err
 		}
 	case len(path) < len(mtb.prevPath):
 		mp.Prev = prev.Parent
-		mp.Prev.Next = &mp
+		if mp.Prev != nil {
+			mp.Prev.Next = &mp
+		}
 	case len(path) > len(mtb.prevPath):
 		mp.Parent = prev
 		if prev != nil {
