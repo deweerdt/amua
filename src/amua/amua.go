@@ -69,6 +69,8 @@ const (
 	Trashed                          //Flag "T" (trashed): the user has moved this message to the trash; the trash will be emptied by a later user action.
 	Draft                            //Flag "D" (draft): the user considers this message a draft; toggled at user discretion.
 	Flagged                          //Flag "F" (flagged): user-defined flag; toggled at user discretion.
+	/* Those are internal, and aren't saved to disk */
+	Tagged //Tagged, used for tagged actions
 
 )
 
@@ -82,10 +84,10 @@ func flagsToString(f MessageFlags) string {
 		ret[0] = 'p'
 	}
 	if (f & Trashed) != 0 {
-		ret[1] = 'T'
+		ret[1] = 'D'
 	}
 	if (f & Draft) != 0 {
-		ret[2] = 'D'
+		ret[2] = 'd'
 	}
 	if (f & Flagged) != 0 {
 		ret[3] = '!'
@@ -109,6 +111,29 @@ func parseFlags(s string) MessageFlags {
 		case 'F':
 			ret |= Flagged
 		}
+	}
+	return ret
+}
+
+func flagsToFile(f MessageFlags) string {
+	ret := ""
+	if (f & Passed) != 0 {
+		ret += "P"
+	}
+	if (f & Replied) != 0 {
+		ret += "R"
+	}
+	if (f & Seen) != 0 {
+		ret += "S"
+	}
+	if (f & Trashed) != 0 {
+		ret += "T"
+	}
+	if (f & Draft) != 0 {
+		ret += "D"
+	}
+	if (f & Flagged) != 0 {
+		ret += "F"
 	}
 	return ret
 }
@@ -138,6 +163,7 @@ func dehtmlize(in *bytes.Buffer) *bytes.Buffer {
 	ret := bytes.NewBufferString(out)
 	return ret
 }
+
 func partSummary(m *mime.MimePart) *bytes.Buffer {
 	name := ""
 	if m.Name != "" {
@@ -147,6 +173,7 @@ func partSummary(m *mime.MimePart) *bytes.Buffer {
 	str := fmt.Sprintf("\n\033[7m[-- %s %s- (%s) --]\n", mime.MimeTypeTxt(m.MimeType), name, util.SiteToHuman(int64(m.Buf.Len())))
 	return bytes.NewBufferString(str)
 }
+
 func traverse(m *mime.MimePart) []*bytes.Buffer {
 	ret := make([]*bytes.Buffer, 0)
 	if m.MimeType.IsMultipart() && m.Child == nil {
@@ -415,7 +442,7 @@ const (
 	MessageMode
 	MessageMimeMode
 	KnownMaildirsMode
-	CommandMode
+	CommandSearchMode
 	MaxMode
 )
 
@@ -434,9 +461,6 @@ func (amua *Amua) get_message(idx int) *Message {
 }
 func (amua *Amua) cur_message() *Message {
 	return amua.get_message(amua.cur_maildir_view.cur)
-}
-func quit(g *gocui.Gui, v *gocui.View) error {
-	return gocui.ErrQuit
 }
 
 const MAILDIR_VIEW = "maildir"
@@ -494,6 +518,31 @@ func scrollSideView(amua *Amua, dy int) func(g *gocui.Gui, v *gocui.View) error 
 	}
 }
 
+func (amua *Amua) applyCurMaildirChanges() error {
+	md := amua.cur_maildir_view.md
+	for _, m := range md.messages {
+		if (m.Flags & Trashed) != 0 {
+			err := os.Remove(m.path)
+			if err != nil {
+				panic(err)
+			}
+			continue
+		}
+		path := m.path
+		i := strings.LastIndex(m.path, ":2,")
+		if i != -1 {
+			path = path[:i]
+		}
+		new_path := fmt.Sprintf("%s:2,%s", path, flagsToFile(m.Flags))
+		if m.path != new_path {
+			err := os.Rename(m.path, new_path)
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+	return nil
+}
 func (amua *Amua) RefreshMaildir(g *gocui.Gui, v *gocui.View) error {
 	md, err := LoadMaildir(amua.known_maildirs[amua.curMaildir].path, true)
 	if err != nil {
@@ -579,7 +628,7 @@ func modeToViewStr(mode Mode) string {
 		return MESSAGE_VIEW
 	case KnownMaildirsMode:
 		return SIDE_VIEW
-	case CommandMode:
+	case CommandSearchMode:
 		return STATUS_VIEW
 	}
 	return ""
@@ -641,10 +690,8 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 		err = (*MessageAsMimeTree)(m).Draw(amua, g)
 	case MaildirMode:
 		v, _ := g.View(curview)
-		if amua.prev_mode != MessageMimeMode && amua.prev_mode != MessageMode {
-			err = amua.cur_maildir_view.Draw(v)
-		}
-	case CommandMode:
+		err = amua.cur_maildir_view.Draw(v)
+	case CommandSearchMode:
 		v, _ := g.View(curview)
 		v.Clear()
 		v.SetOrigin(0, 0)
@@ -765,6 +812,52 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 		setStatus("")
 		return switchToMode(amua, g, amua.prev_mode)
 	}
+	setFlag := func(flag MessageFlags) func(g *gocui.Gui, v *gocui.View) error {
+		return func(g *gocui.Gui, v *gocui.View) error {
+			m := amua.cur_message()
+			m.Flags |= flag
+			amua.cur_maildir_view.Draw(v)
+			return nil
+		}
+	}
+	unsetFlag := func(flag MessageFlags) func(g *gocui.Gui, v *gocui.View) error {
+		return func(g *gocui.Gui, v *gocui.View) error {
+			m := amua.cur_message()
+			m.Flags &= ^flag
+			amua.cur_maildir_view.Draw(v)
+			return nil
+		}
+	}
+	toggleFlag := func(flag MessageFlags) func(g *gocui.Gui, v *gocui.View) error {
+		return func(g *gocui.Gui, v *gocui.View) error {
+			m := amua.cur_message()
+			if (m.Flags & flag) != 0 {
+				m.Flags &= ^flag
+			} else {
+				m.Flags |= flag
+			}
+			amua.cur_maildir_view.Draw(v)
+			return nil
+		}
+	}
+	quit := func(g *gocui.Gui, v *gocui.View) error {
+		amua.applyCurMaildirChanges()
+		return gocui.ErrQuit
+	}
+
+	deleteMessage := setFlag(Trashed)
+	undeleteMessage := unsetFlag(Trashed)
+	unreadMessage := unsetFlag(Seen)
+	readMessage := setFlag(Seen)
+	toggleFlagged := toggleFlag(Flagged)
+
+	syncMaildir := func(g *gocui.Gui, v *gocui.View) error {
+		amua.applyCurMaildirChanges()
+		amua.RefreshMaildir(g, v)
+		v, _ = g.View(SIDE_VIEW)
+		drawKnownMaildirs(amua, g, v)
+		return nil
+	}
 	type keybinding struct {
 		key interface{}
 		fn  gocui.KeybindingHandler
@@ -776,18 +869,24 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			{'c', switchToModeInt(KnownMaildirsMode), false},
 			{'v', switchToModeInt(MessageMimeMode), false},
 			{'q', quit, false},
+			{'d', deleteMessage, false},
+			{'u', undeleteMessage, false},
 			{'G', maildir_all_down(), false},
 			{'k', maildir_move(-1), false},
 			{gocui.KeyArrowUp, maildir_move(-1), false},
 			{'j', maildir_move(1), false},
 			{'n', search(true), false},
 			{'N', search(false), false},
+			{'$', syncMaildir, false},
+			{'F', toggleFlagged, false},
+			{gocui.KeyCtrlR, readMessage, false},
+			{gocui.KeyCtrlN, unreadMessage, false},
 			{gocui.KeyArrowDown, maildir_move(1), false},
 			{gocui.KeyCtrlF, maildir_move(10), false},
 			{gocui.KeyPgdn, maildir_move(10), false},
 			{gocui.KeyCtrlB, maildir_move(-10), false},
 			{gocui.KeyPgup, maildir_move(-10), false},
-			{'/', switchToModeInt(CommandMode), false},
+			{'/', switchToModeInt(CommandSearchMode), false},
 		},
 		MESSAGE_VIEW: {
 			{'q', switchToModeInt(MaildirMode), false},
@@ -837,7 +936,6 @@ func drawSlider(amua *Amua, g *gocui.Gui) {
 	if slider_h <= 0 {
 		slider_h = 1
 	}
-	setStatus(fmt.Sprintf("%d", slider_h))
 	for i := 0; i < whites; i++ {
 		fmt.Fprintln(v, " ")
 	}

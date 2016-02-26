@@ -52,6 +52,7 @@ future
 	maildir
 		actions
 			flag as important
+			tagged actions
 	message view
 		view
 			make text vs. html configurable
