@@ -494,7 +494,7 @@ func scrollSideView(amua *Amua, dy int) func(g *gocui.Gui, v *gocui.View) error 
 	}
 }
 
-func (amua *Amua) RefreshMaildir(v *gocui.View) error {
+func (amua *Amua) RefreshMaildir(g *gocui.Gui, v *gocui.View) error {
 	md, err := LoadMaildir(amua.known_maildirs[amua.curMaildir].path, true)
 	if err != nil {
 		return err
@@ -508,6 +508,7 @@ func (amua *Amua) RefreshMaildir(v *gocui.View) error {
 	if err != nil {
 		fmt.Fprintf(v, err.Error())
 	}
+	drawSlider(amua, g)
 
 	return nil
 }
@@ -554,7 +555,7 @@ func selectNewMaildir(amua *Amua) func(g *gocui.Gui, v *gocui.View) error {
 			if err != nil {
 				return err
 			}
-			err = amua.RefreshMaildir(mv)
+			err = amua.RefreshMaildir(g, mv)
 			if err != nil {
 				return err
 			}
@@ -687,6 +688,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 	maildir_move := func(dy int) func(g *gocui.Gui, v *gocui.View) error {
 		return func(g *gocui.Gui, v *gocui.View) error {
 			amua.cur_maildir_view.scroll(v, dy)
+			drawSlider(amua, g)
 			return nil
 		}
 	}
@@ -694,6 +696,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 		return func(g *gocui.Gui, v *gocui.View) error {
 			dy := len(amua.cur_maildir_view.md.messages) - amua.cur_maildir_view.cur - 1
 			amua.cur_maildir_view.scroll(v, dy)
+			drawSlider(amua, g)
 			return nil
 		}
 	}
@@ -822,6 +825,27 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 	return nil
 }
 
+func drawSlider(amua *Amua, g *gocui.Gui) {
+	v, err := g.View(SLIDER_VIEW)
+	if err != nil {
+		return
+	}
+	v.Clear()
+	_, h := v.Size()
+	slider_h := h * h / len(amua.cur_maildir_view.md.messages)
+	whites := amua.cur_maildir_view.cur_top * h / len(amua.cur_maildir_view.md.messages)
+	if slider_h <= 0 {
+		slider_h = 1
+	}
+	setStatus(fmt.Sprintf("%d", slider_h))
+	for i := 0; i < whites; i++ {
+		fmt.Fprintln(v, " ")
+	}
+	for i := 0; i < slider_h; i++ {
+		fmt.Fprintln(v, "\u2588")
+	}
+}
+
 var setStatus func(s string)
 
 func get_layout(amua *Amua) func(g *gocui.Gui) error {
@@ -863,11 +887,7 @@ func get_layout(amua *Amua) func(g *gocui.Gui) error {
 				return err
 			}
 			v.Frame = false
-			_, h := v.Size()
-			slider_h := h * h / len(amua.cur_maildir_view.md.messages)
-			for i := 0; i < slider_h; i++ {
-				fmt.Fprintln(v, "\u2588")
-			}
+			drawSlider(amua, g)
 		}
 		v, err = g.SetView(STATUS_VIEW, -1, maxY-2, maxX, maxY)
 		if err != nil {
@@ -943,7 +963,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			err = amua.RefreshMaildir(mv)
+			err = amua.RefreshMaildir(g, mv)
 			if err != nil {
 				return err
 			}
@@ -970,7 +990,10 @@ func main() {
 	}
 
 	setStatus = func(s string) {
-		v, _ := g.View(STATUS_VIEW)
+		v, err := g.View(STATUS_VIEW)
+		if err != nil {
+			return
+		}
 		w, _ := v.Size()
 		v.Clear()
 		format := fmt.Sprintf("\033[7m%%-%ds\033[0m", w)
