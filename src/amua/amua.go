@@ -421,6 +421,7 @@ const (
 
 type Amua struct {
 	mode             Mode
+	prev_mode        Mode
 	cur_maildir_view *MaildirView
 	cur_message_view *MessageView
 	known_maildirs   []known_maildir
@@ -625,7 +626,7 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 		v := modeToView(g, amua.mode)
 		v.Highlight = false
 	}
-	prev_mode := amua.mode
+	amua.prev_mode = amua.mode
 	amua.mode = mode
 	curview := modeToViewStr(amua.mode)
 	var err error
@@ -639,7 +640,7 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 		err = (*MessageAsMimeTree)(m).Draw(amua, g)
 	case MaildirMode:
 		v, _ := g.View(curview)
-		if prev_mode != MessageMimeMode && prev_mode != MessageMode {
+		if amua.prev_mode != MessageMimeMode && amua.prev_mode != MessageMode {
 			err = amua.cur_maildir_view.Draw(v)
 		}
 	case CommandMode:
@@ -738,6 +739,8 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 				if err != nil {
 					setStatus(err.Error())
 				}
+			} else {
+				setStatus(amua.searchPattern + " not found")
 			}
 			return nil
 		}
@@ -754,6 +757,10 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			search(forward)(g, v)
 			return nil
 		}
+	}
+	cancelSearch := func(g *gocui.Gui, v *gocui.View) error {
+		setStatus("")
+		return switchToMode(amua, g, amua.prev_mode)
 	}
 	type keybinding struct {
 		key interface{}
@@ -790,6 +797,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 		},
 		STATUS_VIEW: {
 			{gocui.KeyEnter, enterSearch(true), false},
+			{gocui.KeyCtrlG, cancelSearch, false},
 		},
 		SIDE_VIEW: {
 			{'j', scrollSideView(amua, 1), false},
@@ -868,6 +876,7 @@ func get_layout(amua *Amua) func(g *gocui.Gui) error {
 			}
 			v.Frame = false
 		}
+		//setStatus("")
 		return nil
 	}
 }
@@ -949,6 +958,8 @@ func main() {
 		log.Fatal(err)
 	}
 	amua.curMaildir = 0
+	amua.prev_mode = MaildirMode
+	amua.mode = MaildirMode
 	md := amua.known_maildirs[amua.curMaildir].maildir
 	g.SetLayout(get_layout(amua))
 	mdv := &MaildirView{md: md}

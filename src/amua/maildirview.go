@@ -9,8 +9,9 @@ import (
 )
 
 type MaildirView struct {
-	cur int
-	md  *Maildir
+	cur_top int
+	cur     int
+	md      *Maildir
 }
 
 func (mv *MaildirView) Draw(v *gocui.View) error {
@@ -24,9 +25,9 @@ func (mv *MaildirView) Draw(v *gocui.View) error {
 	}
 
 	xo, _ := v.Origin()
-	v.SetOrigin(xo, mv.cur)
+	v.SetOrigin(xo, mv.cur_top)
 	xc, _ := v.Cursor()
-	v.SetCursor(xc, 0)
+	v.SetCursor(xc, mv.cur-mv.cur_top)
 	msgs := mv.md.messages
 	flags_len := 5
 	index_len := 6
@@ -61,7 +62,17 @@ func (mv *MaildirView) scroll(v *gocui.View, incr int) {
 	mv.cur += incr
 	y += incr
 	if y >= h || y <= 0 {
+		mv.cur_top += incr
+		if mv.cur_top < 0 {
+			mv.cur_top = 0
+		}
 		v.SetOrigin(xo, yo+incr)
 	}
 	v.SetCursor(x, y)
+
+	if true {
+		xo, yo = v.Origin()
+		x, y = v.Cursor()
+		setStatus(fmt.Sprintf("origin=(%d, %d), cursor=(%d, %d), mv=(%d, %d)", xo, yo, x, y, mv.cur, mv.cur_top))
+	}
 }
