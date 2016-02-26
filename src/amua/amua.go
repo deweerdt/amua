@@ -692,7 +692,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 	}
 	maildir_all_down := func() func(g *gocui.Gui, v *gocui.View) error {
 		return func(g *gocui.Gui, v *gocui.View) error {
-			dy := len(amua.cur_maildir_view.md.messages)
+			dy := len(amua.cur_maildir_view.md.messages) - amua.cur_maildir_view.cur - 1
 			amua.cur_maildir_view.scroll(v, dy)
 			return nil
 		}

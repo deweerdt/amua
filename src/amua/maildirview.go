@@ -53,26 +53,36 @@ func (mv *MaildirView) scroll(v *gocui.View, incr int) {
 	x, y := v.Cursor()
 	_, h := v.Size()
 
+	str := fmt.Sprintf("0: %d, ", incr)
 	if mv.cur+incr > len(mv.md.messages)-1 {
 		incr = len(mv.md.messages) - 1 - mv.cur
+		str += fmt.Sprintf("1: %d, ", incr)
 	}
 	if mv.cur+incr < 0 {
 		incr = 0 - mv.cur
+		str += fmt.Sprintf("2: %d, ", incr)
 	}
 	mv.cur += incr
 	y += incr
-	if y >= h || y <= 0 {
+	if y >= h || y < 0 {
 		mv.cur_top += incr
 		if mv.cur_top < 0 {
 			mv.cur_top = 0
 		}
-		v.SetOrigin(xo, yo+incr)
+		yo = yo + incr
+		if yo < 0 {
+			yo = 0
+		}
+		v.SetOrigin(xo, yo)
+	}
+	if y < 0 {
+		y = 0
 	}
 	v.SetCursor(x, y)
 
-	if true {
+	if false {
 		xo, yo = v.Origin()
 		x, y = v.Cursor()
-		setStatus(fmt.Sprintf("origin=(%d, %d), cursor=(%d, %d), mv=(%d, %d)", xo, yo, x, y, mv.cur, mv.cur_top))
+		setStatus(fmt.Sprintf("%s origin=(%d), cursor=(%d), mv=(%d, %d)", str, yo, y, mv.cur, mv.cur_top))
 	}
 }
