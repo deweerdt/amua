@@ -637,36 +637,45 @@ func (mode Mode) IsHighlighted() bool {
 	return mode != MessageMode && mode != MessageMimeMode
 }
 
-var prompt = "Enter a command: "
-var promptLength = len(prompt)
+func modeToPrompt(mode Mode) string {
+	switch mode {
+	case CommandSearchMode:
+		return "Search :"
+	default:
+		return "FIXME: "
+	}
+}
 
-func commandEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
-	// simpleEditor is used as the default gocui editor.
-	switch {
-	case ch != 0 && mod == 0:
-		v.EditWrite(ch)
-	case key == gocui.KeySpace:
-		v.EditWrite(' ')
-	case key == gocui.KeyBackspace || key == gocui.KeyBackspace2:
-		xc, _ := v.Cursor()
-		if xc <= promptLength {
-			return
+func getCommandEditor(amua *Amua) func(*gocui.View, gocui.Key, rune, gocui.Modifier) {
+	return func(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
+		prompt := modeToPrompt(amua.mode)
+		// simpleEditor is used as the default gocui editor.
+		switch {
+		case ch != 0 && mod == 0:
+			v.EditWrite(ch)
+		case key == gocui.KeySpace:
+			v.EditWrite(' ')
+		case key == gocui.KeyBackspace || key == gocui.KeyBackspace2:
+			xc, _ := v.Cursor()
+			if xc <= len(prompt) {
+				return
+			}
+			v.EditDelete(true)
+		case key == gocui.KeyDelete:
+			xc, _ := v.Cursor()
+			if xc <= len(prompt) {
+				return
+			}
+			v.EditDelete(false)
+		case key == gocui.KeyArrowLeft:
+			xc, _ := v.Cursor()
+			if xc <= len(prompt) {
+				return
+			}
+			v.MoveCursor(-1, 0, false)
+		case key == gocui.KeyArrowRight:
+			v.MoveCursor(1, 0, false)
 		}
-		v.EditDelete(true)
-	case key == gocui.KeyDelete:
-		xc, _ := v.Cursor()
-		if xc <= promptLength {
-			return
-		}
-		v.EditDelete(false)
-	case key == gocui.KeyArrowLeft:
-		xc, _ := v.Cursor()
-		if xc <= promptLength {
-			return
-		}
-		v.MoveCursor(-1, 0, false)
-	case key == gocui.KeyArrowRight:
-		v.MoveCursor(1, 0, false)
 	}
 }
 
@@ -692,6 +701,7 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 		v, _ := g.View(curview)
 		err = amua.cur_maildir_view.Draw(v)
 	case CommandSearchMode:
+		prompt := modeToPrompt(amua.mode)
 		v, _ := g.View(curview)
 		v.Clear()
 		v.SetOrigin(0, 0)
@@ -699,7 +709,7 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 		v.Editable = true
 		fmt.Fprintf(v, prompt)
 		cx, cy := v.Cursor()
-		v.SetCursor(cx+promptLength+1, cy)
+		v.SetCursor(cx+len(prompt)+1, cy)
 	}
 
 	if err != nil {
@@ -802,7 +812,8 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			if err != nil {
 				return err
 			}
-			amua.searchPattern = strings.TrimSpace(string(spbuf[promptLength:]))
+			prompt := modeToPrompt(amua.mode)
+			amua.searchPattern = strings.TrimSpace(string(spbuf[len(prompt):]))
 			switchToMode(amua, g, MaildirMode)
 			search(forward)(g, v)
 			return nil
@@ -1052,7 +1063,7 @@ func main() {
 	if err := g.Init(); err != nil {
 		log.Panicln(err)
 	}
-	g.Editor = gocui.EditorFunc(commandEditor)
+	g.Editor = gocui.EditorFunc(getCommandEditor(amua))
 	defer g.Close()
 
 	onchange := func(km *known_maildir) {
