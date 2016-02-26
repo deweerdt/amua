@@ -1,11 +1,11 @@
-[_] 52% v1
+[_] 75% v1
 	: v1 is a usable replacement for my current mutt setup:
 	: we'll use fetchmail to put messages in maildirs, and amua will monitor
 	: those maildirs
-	[_] 45% maildir
-		[_] 90% view
+	[_] 75% maildir
+		[X] 100% view
 			[X] scroll up and down
-			[_] 50% slider
+			[X] slider
 			[X] display
 				; Number|Flags|Date|From|Size|Subject
 			[X] refresh
@@ -13,24 +13,26 @@
 			: https://cr.yp.to/proto/maildir.html
 			: inotify is linux only, so it sounds like a dedicated goroutine
 			: will do 
-		[_] 0% actions
-			[_] 0% delete
-			[_] 0% undelete
+		[_] 50% actions
+			[X] 100% delete
+			[X] 100% undelete
 			[_] 0% move
 			[_] 0% mail
-			[_] 0% search /, n and N
-	[_] 16% message view
-		[_] 33% view
+			[_] pipe
+			[X] 100% search /, n and N
+	[_] 25% message view
+		[_] 50% view
 			[X] 100% text/html
 			[_] 0% attachments
 				[_] in message attachements
-				: have a view pop up in the bottom that we can switch too, and
-				: toggle through the attachements 
 				[_] view attachments
 				: When pressing 'v' in maildir view or message view, we'll
 				: display the mime tree in the message view. 'q' will either
 				: go back to maildir view or the message view
-			[_] 0% slider
+					[X] display attachements
+					[_] save attachements
+					[_] open attachements
+					[_] pipe attachements
 		[_] 0% actions
 			[_] 0% reply to
 			[_] 0% group reply
@@ -42,12 +44,6 @@
 	[X] 100% maildir sidebar
 		[X] view
 		[X] have a way to show  selection
-	[_] 0% search
-		: Ideas:
-		: - have search work like a series of pipes:
-		:   from foo | contains urgent | before 1m
-		: - use leveldb for indexing words
-		: - use metaphone for fuzzy matching
 future
 	maildir
 		actions
@@ -56,6 +52,14 @@ future
 	message view
 		view
 			make text vs. html configurable
+			slider
+			alternate encodings (window-1252, iso-8859-1)
 	maildir side bar
 		view
 			scrolling (hardcoded for now)
+	search
+		: Ideas:
+		: - have search work like a series of pipes:
+		:   from foo | contains urgent | before 1m
+		: - use leveldb for indexing words
+		: - use metaphone for fuzzy matching
