@@ -736,21 +736,24 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 				}
 				err = amua.cur_maildir_view.Draw(mv)
 				if err != nil {
-					fmt.Fprintf(v, err.Error())
+					setStatus(err.Error())
 				}
 			}
 			return nil
 		}
 	}
-	enterSearch := func(g *gocui.Gui, v *gocui.View) error {
-		v.Rewind()
-		spbuf, err := ioutil.ReadAll(v)
-		if err != nil {
-			return err
+	enterSearch := func(forward bool) func(g *gocui.Gui, v *gocui.View) error {
+		return func(g *gocui.Gui, v *gocui.View) error {
+			v.Rewind()
+			spbuf, err := ioutil.ReadAll(v)
+			if err != nil {
+				return err
+			}
+			amua.searchPattern = strings.TrimSpace(string(spbuf[promptLength:]))
+			switchToMode(amua, g, MaildirMode)
+			search(forward)(g, v)
+			return nil
 		}
-		amua.searchPattern = strings.TrimSpace(string(spbuf[promptLength:]))
-		switchToMode(amua, g, MaildirMode)
-		return nil
 	}
 	type keybinding struct {
 		key interface{}
@@ -786,7 +789,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			{'k', scrollMessageView(-1), false},
 		},
 		STATUS_VIEW: {
-			{gocui.KeyEnter, enterSearch, false},
+			{gocui.KeyEnter, enterSearch(true), false},
 		},
 		SIDE_VIEW: {
 			{'j', scrollSideView(amua, 1), false},
