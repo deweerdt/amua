@@ -443,9 +443,17 @@ const (
 	MessageMimeMode
 	KnownMaildirsMode
 	CommandSearchMode
+	CommandMailMode
 	MaxMode
 )
 
+// Holds values while a new email is being edited
+type NewMail struct {
+	to      string
+	rcpt    string
+	subject string
+	body    string
+}
 type Amua struct {
 	mode             Mode
 	prev_mode        Mode
@@ -454,6 +462,8 @@ type Amua struct {
 	known_maildirs   []known_maildir
 	curMaildir       int
 	searchPattern    string
+	prompt           string
+	newMail          NewMail
 }
 
 func (amua *Amua) get_message(idx int) *Message {
@@ -630,6 +640,8 @@ func modeToViewStr(mode Mode) string {
 		return SIDE_VIEW
 	case CommandSearchMode:
 		return STATUS_VIEW
+	case CommandMailMode:
+		return STATUS_VIEW
 	}
 	return ""
 }
@@ -637,18 +649,13 @@ func (mode Mode) IsHighlighted() bool {
 	return mode != MessageMode && mode != MessageMimeMode
 }
 
-func modeToPrompt(mode Mode) string {
-	switch mode {
-	case CommandSearchMode:
-		return "Search :"
-	default:
-		return "FIXME: "
-	}
-}
+const SEARCH_PROMPT = "Search: "
+const TO_PROMPT = "To: "
+const SUBJECT_PROMPT = "Subject: "
 
 func getCommandEditor(amua *Amua) func(*gocui.View, gocui.Key, rune, gocui.Modifier) {
 	return func(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
-		prompt := modeToPrompt(amua.mode)
+		prompt := amua.prompt
 		// simpleEditor is used as the default gocui editor.
 		switch {
 		case ch != 0 && mod == 0:
@@ -700,16 +707,10 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 	case MaildirMode:
 		v, _ := g.View(curview)
 		err = amua.cur_maildir_view.Draw(v)
+	case CommandMailMode:
+		displayPrompt(TO_PROMPT)
 	case CommandSearchMode:
-		prompt := modeToPrompt(amua.mode)
-		v, _ := g.View(curview)
-		v.Clear()
-		v.SetOrigin(0, 0)
-		v.SetCursor(0, 0)
-		v.Editable = true
-		fmt.Fprintf(v, prompt)
-		cx, cy := v.Cursor()
-		v.SetCursor(cx+len(prompt)+1, cy)
+		displayPrompt(SEARCH_PROMPT)
 	}
 
 	if err != nil {
@@ -812,7 +813,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			if err != nil {
 				return err
 			}
-			prompt := modeToPrompt(amua.mode)
+			prompt := amua.prompt
 			amua.searchPattern = strings.TrimSpace(string(spbuf[len(prompt):]))
 			switchToMode(amua, g, MaildirMode)
 			search(forward)(g, v)
@@ -869,6 +870,22 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 		drawKnownMaildirs(amua, g, v)
 		return nil
 	}
+	commandEnter := func(g *gocui.Gui, v *gocui.View) error {
+		switch amua.mode {
+		case CommandSearchMode:
+			return enterSearch(true)(g, v)
+		case CommandMailMode:
+			if amua.newMail.to == "" {
+				amua.newMail.to = getPromptInput()
+				displayPrompt(SUBJECT_PROMPT)
+			} else if amua.newMail.subject == "" {
+				amua.newMail.subject = getPromptInput()
+			} else {
+				/* Exec $EDITOR */
+			}
+		}
+		return nil
+	}
 	type keybinding struct {
 		key interface{}
 		fn  gocui.KeybindingHandler
@@ -898,6 +915,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			{gocui.KeyCtrlB, maildir_move(-10), false},
 			{gocui.KeyPgup, maildir_move(-10), false},
 			{'/', switchToModeInt(CommandSearchMode), false},
+			{'m', switchToModeInt(CommandMailMode), false},
 		},
 		MESSAGE_VIEW: {
 			{'q', switchToModeInt(MaildirMode), false},
@@ -909,7 +927,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			{'k', scrollMessageView(-1), false},
 		},
 		STATUS_VIEW: {
-			{gocui.KeyEnter, enterSearch(true), false},
+			{gocui.KeyEnter, commandEnter, false},
 			{gocui.KeyCtrlG, cancelSearch, false},
 		},
 		SIDE_VIEW: {
@@ -956,6 +974,8 @@ func drawSlider(amua *Amua, g *gocui.Gui) {
 }
 
 var setStatus func(s string)
+var displayPrompt func(s string)
+var getPromptInput func() string
 
 func get_layout(amua *Amua) func(g *gocui.Gui) error {
 	return func(g *gocui.Gui) error {
@@ -1098,6 +1118,30 @@ func main() {
 		log.Panicln(err)
 	}
 
+	displayPrompt = func(s string) {
+		amua.prompt = s
+		v, _ := g.View(STATUS_VIEW)
+		v.Clear()
+		v.SetOrigin(0, 0)
+		v.SetCursor(0, 0)
+		v.Editable = true
+		fmt.Fprintf(v, amua.prompt)
+		cx, cy := v.Cursor()
+		v.SetCursor(cx+len(amua.prompt)+1, cy)
+	}
+	getPromptInput = func() string {
+		v, err := g.View(STATUS_VIEW)
+		if err != nil {
+			return ""
+		}
+		v.Rewind()
+		spbuf, err := ioutil.ReadAll(v)
+		if err != nil {
+			return ""
+		}
+		prompt := amua.prompt
+		return strings.TrimSpace(string(spbuf[len(prompt):]))
+	}
 	setStatus = func(s string) {
 		v, err := g.View(STATUS_VIEW)
 		if err != nil {
