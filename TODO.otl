@@ -39,8 +39,10 @@
 			[_] 0% delete
 			[_] 0% bounce
 			[_] 0% search /, n and N
-	[X] 100% config format
+	[_] % config format
 		; https://github.com/BurntSushi/toml
+		[_] Configurable editor (or $EDITOR)
+		[_] SMTP config
 	[X] 100% maildir sidebar
 		[X] view
 		[X] have a way to show  selection
