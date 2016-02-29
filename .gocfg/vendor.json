@@ -6,7 +6,7 @@
     },
     "vendor/src/github.com/deweerdt/gocui": {
       "URI": "https://github.com/deweerdt/gocui",
-      "Ref": "24ad25c992371271a5b776f6c140a5f4878d0e5"
+      "Ref": "28fe315e247e3cf30daa4b8cab7336e25ef9ac9e"
 
     },
     "vendor/src/github.com/jaytaylor/html2text": {

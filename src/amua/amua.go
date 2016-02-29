@@ -935,7 +935,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 				}
 				setStatus("")
 				switchToMode(amua, g, SendMailMode)
-				err = g.Redraw()
+				err = g.Sync()
 				if err != nil {
 					log.Fatal(err)
 				}
