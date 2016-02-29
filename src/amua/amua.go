@@ -142,8 +142,9 @@ func flagsToFile(f MessageFlags) string {
 type Message struct {
 	From    string
 	To      string
-	ReplyTo string
 	Subject string
+	CCs     string
+	ReplyTo string
 	Date    time.Time
 	path    string
 	rs      *read_state
@@ -151,21 +152,28 @@ type Message struct {
 	Flags   MessageFlags
 }
 
-func getTo(m *Message) *mail.Address {
+func getCCs(m *Message) []*mail.Address {
+	ret, err := mail.ParseAddressList(m.CCs)
+	if err == nil {
+		return ret
+	}
+	return []*mail.Address{}
+}
+func getTo(m *Message) []*mail.Address {
 	if m.ReplyTo != "" {
 		ret, err := mail.ParseAddress(m.ReplyTo)
 		if err == nil {
-			return ret
+			return []*mail.Address{ret}
 		}
 	}
 	if m.From != "" {
 		ret, err := mail.ParseAddress(m.From)
 		if err == nil {
-			return ret
+			return []*mail.Address{ret}
 		}
 	}
 
-	return nil
+	return []*mail.Address{}
 }
 func dehtmlize(in *bytes.Buffer) *bytes.Buffer {
 	out, err := html2text.FromReader(in)
@@ -379,6 +387,7 @@ func LoadMessage(path string) (*Message, error) {
 	}
 	m.From = mimedec(msg.Header.Get("From"))
 	m.ReplyTo = mimedec(msg.Header.Get("reply-to"))
+	m.CCs = mimedec(msg.Header.Get("cc"))
 	m.To = mimedec(msg.Header.Get("To"))
 
 	m.Subject = mimedec(msg.Header.Get("Subject"))
@@ -1018,7 +1027,15 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 	}
 	replyMessage := func(g *gocui.Gui, v *gocui.View) error {
 		m := amua.cur_message()
-		amua.newMail.to = []*mail.Address{getTo(m)}
+		amua.newMail.to = getTo(m)
+		amua.newMail.subject = "Re: " + m.Subject
+		switchToMode(amua, g, CommandNewMailMode)
+		return nil
+	}
+	groupReplyMessage := func(g *gocui.Gui, v *gocui.View) error {
+		m := amua.cur_message()
+		amua.newMail.to = getTo(m)
+		amua.newMail.cc = getCCs(m)
 		amua.newMail.subject = "Re: " + m.Subject
 		switchToMode(amua, g, CommandNewMailMode)
 		return nil
@@ -1054,6 +1071,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			{'/', switchToModeInt(CommandSearchMode), false},
 			{'m', switchToModeInt(CommandNewMailMode), false},
 			{'r', replyMessage, false},
+			{'g', groupReplyMessage, false},
 		},
 		MESSAGE_VIEW: {
 			{'q', switchToModeInt(MaildirMode), false},
@@ -1064,6 +1082,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			{'j', scrollMessageView(1), false},
 			{'k', scrollMessageView(-1), false},
 			{'r', replyMessage, false},
+			{'g', groupReplyMessage, false},
 		},
 		SEND_MAIL_VIEW: {
 			{'q', switchToModeInt(MaildirMode), false},
