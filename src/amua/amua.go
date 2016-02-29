@@ -688,6 +688,8 @@ func getCommandEditor(amua *Amua) func(*gocui.View, gocui.Key, rune, gocui.Modif
 
 func (amua *Amua) sendMailDraw(v *gocui.View) error {
 	v.Clear()
+	v.Frame = false
+	v.Highlight = false
 	v.Wrap = true
 	v.SetOrigin(0, 0)
 
@@ -1056,8 +1058,6 @@ func get_layout(amua *Amua) func(g *gocui.Gui) error {
 			if err != gocui.ErrUnknownView {
 				return err
 			}
-			v.Frame = false
-			v.Highlight = false
 			amua.sendMailDraw(v)
 		}
 		v, err = g.SetView(MESSAGE_VIEW, int(0.15*float32(maxX)), -1, maxX-1, maxY-1)
@@ -1199,7 +1199,7 @@ func main() {
 		v.Editable = true
 		fmt.Fprintf(v, amua.prompt)
 		cx, cy := v.Cursor()
-		v.SetCursor(cx+len(amua.prompt)+1, cy)
+		v.SetCursor(cx+len(amua.prompt), cy)
 	}
 	getPromptInput = func() string {
 		v, err := g.View(STATUS_VIEW)
