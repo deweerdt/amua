@@ -10,6 +10,7 @@ import (
 	gomime "mime"
 	"net/mail"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"sort"
@@ -444,16 +445,10 @@ const (
 	KnownMaildirsMode
 	CommandSearchMode
 	CommandMailMode
+	SendMailMode
 	MaxMode
 )
 
-// Holds values while a new email is being edited
-type NewMail struct {
-	to      string
-	rcpt    string
-	subject string
-	body    string
-}
 type Amua struct {
 	mode             Mode
 	prev_mode        Mode
@@ -473,11 +468,14 @@ func (amua *Amua) cur_message() *Message {
 	return amua.get_message(amua.cur_maildir_view.cur)
 }
 
-const MAILDIR_VIEW = "maildir"
-const MESSAGE_VIEW = "message"
-const SLIDER_VIEW = "slider"
-const SIDE_VIEW = "side"
-const STATUS_VIEW = "status"
+const (
+	MAILDIR_VIEW   = "maildir"
+	MESSAGE_VIEW   = "message"
+	SLIDER_VIEW    = "slider"
+	SIDE_VIEW      = "side"
+	STATUS_VIEW    = "status"
+	SEND_MAIL_VIEW = "send_mail"
+)
 
 type MessageView struct {
 	cur int
@@ -642,6 +640,8 @@ func modeToViewStr(mode Mode) string {
 		return STATUS_VIEW
 	case CommandMailMode:
 		return STATUS_VIEW
+	case SendMailMode:
+		return SEND_MAIL_VIEW
 	}
 	return ""
 }
@@ -686,6 +686,31 @@ func getCommandEditor(amua *Amua) func(*gocui.View, gocui.Key, rune, gocui.Modif
 	}
 }
 
+func (amua *Amua) sendMailDraw(v *gocui.View) error {
+	v.Clear()
+	v.Wrap = true
+	v.SetOrigin(0, 0)
+
+	concat := func(ads []*mail.Address) string {
+		ret := ""
+		for i, a := range ads {
+			if i != 0 {
+				ret += ", "
+			}
+			ret += a.String()
+		}
+		return ret
+	}
+	tos := concat(amua.newMail.to)
+	ccs := concat(amua.newMail.cc)
+	bccs := concat(amua.newMail.bcc)
+	fmt.Fprintf(v, "To: %s\n", tos)
+	fmt.Fprintf(v, "Cc: %s\n", ccs)
+	fmt.Fprintf(v, "Bcc: %s\n", bccs)
+	fmt.Fprintf(v, "Subject: %s\n", amua.newMail.subject)
+	fmt.Fprintf(v, "\n")
+	return nil
+}
 func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 	/* highlight off */
 	if amua.mode.IsHighlighted() {
@@ -707,6 +732,9 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 	case MaildirMode:
 		v, _ := g.View(curview)
 		err = amua.cur_maildir_view.Draw(v)
+	case SendMailMode:
+		v, _ := g.View(curview)
+		err = amua.sendMailDraw(v)
 	case CommandMailMode:
 		displayPrompt(TO_PROMPT)
 	case CommandSearchMode:
@@ -875,16 +903,48 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 		case CommandSearchMode:
 			return enterSearch(true)(g, v)
 		case CommandMailMode:
-			if amua.newMail.to == "" {
-				amua.newMail.to = getPromptInput()
+			if len(amua.newMail.to) == 0 {
+				var err error
+				amua.newMail.to, err = mail.ParseAddressList(getPromptInput())
+				if err != nil {
+					//flash error
+					return nil
+				}
 				displayPrompt(SUBJECT_PROMPT)
 			} else if amua.newMail.subject == "" {
 				amua.newMail.subject = getPromptInput()
-			} else {
 				/* Exec $EDITOR */
+				tf, err := ioutil.TempFile("", "amuamail")
+				if err != nil {
+					log.Fatal(err)
+				}
+				defer os.Remove(tf.Name())
+
+				cmd := exec.Command("vim", tf.Name())
+				cmd.Stdin = os.Stdin
+				cmd.Stdout = os.Stdout
+				if err := cmd.Run(); err != nil {
+					log.Fatal(err)
+				}
+				amua.newMail.body, err = ioutil.ReadFile(tf.Name())
+				if err != nil {
+					log.Fatal(err.Error())
+				}
+				if err := tf.Close(); err != nil {
+					log.Fatal(err)
+				}
+				setStatus("")
+				switchToMode(amua, g, SendMailMode)
+				err = g.Redraw()
+				if err != nil {
+					log.Fatal(err)
+				}
 			}
 		}
 		return nil
+	}
+	sendMail := func(g *gocui.Gui, v *gocui.View) error {
+		panic("sendMail")
 	}
 	type keybinding struct {
 		key interface{}
@@ -925,6 +985,10 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			{gocui.KeySpace, scrollMessageView(10), false},
 			{'j', scrollMessageView(1), false},
 			{'k', scrollMessageView(-1), false},
+		},
+		SEND_MAIL_VIEW: {
+			{'q', switchToModeInt(MaildirMode), false},
+			{'y', sendMail, false},
 		},
 		STATUS_VIEW: {
 			{gocui.KeyEnter, commandEnter, false},
@@ -987,6 +1051,15 @@ func get_layout(amua *Amua) func(g *gocui.Gui) error {
 			}
 			drawKnownMaildirs(amua, g, v)
 		}
+		v, err = g.SetView(SEND_MAIL_VIEW, int(0.15*float32(maxX)), -1, maxX-1, maxY-1)
+		if err != nil {
+			if err != gocui.ErrUnknownView {
+				return err
+			}
+			v.Frame = false
+			v.Highlight = false
+			amua.sendMailDraw(v)
+		}
 		v, err = g.SetView(MESSAGE_VIEW, int(0.15*float32(maxX)), -1, maxX-1, maxY-1)
 		if err != nil {
 			if err != gocui.ErrUnknownView {
@@ -1025,7 +1098,6 @@ func get_layout(amua *Amua) func(g *gocui.Gui) error {
 			}
 			v.Frame = false
 		}
-		//setStatus("")
 		return nil
 	}
 }
