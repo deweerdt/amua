@@ -2,6 +2,8 @@ package main
 
 import (
 	"net/mail"
+
+	"amua/config"
 )
 
 // Holds values while a new email is being edited
@@ -13,11 +15,6 @@ type NewMail struct {
 	body    []byte
 }
 
-type AuthConfig struct {
-	user   string
-	passwd string
-}
-
-func send(to string, cc string, bcc string, body []byte, auth AuthConfig) error {
+func send(nm *NewMail, smtcfg config.SMTPConfig) error {
 	return nil
 }

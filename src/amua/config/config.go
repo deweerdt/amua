@@ -7,8 +7,14 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+type SMTPConfig struct {
+	Host   string
+	User   string
+	Passwd string
+}
 type Config struct {
-	Maildirs []string
+	Maildirs   []string
+	SMTPConfig SMTPConfig
 }
 
 func NewConfig(filename string) (*Config, error) {

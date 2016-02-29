@@ -444,7 +444,10 @@ const (
 	MessageMimeMode
 	KnownMaildirsMode
 	CommandSearchMode
-	CommandMailMode
+	CommandNewMailMode
+	CommandMailModeTo
+	CommandMailModeCc
+	CommandMailModeBcc
 	SendMailMode
 	MaxMode
 )
@@ -638,7 +641,13 @@ func modeToViewStr(mode Mode) string {
 		return SIDE_VIEW
 	case CommandSearchMode:
 		return STATUS_VIEW
-	case CommandMailMode:
+	case CommandNewMailMode:
+		return STATUS_VIEW
+	case CommandMailModeTo:
+		return STATUS_VIEW
+	case CommandMailModeCc:
+		return STATUS_VIEW
+	case CommandMailModeBcc:
 		return STATUS_VIEW
 	case SendMailMode:
 		return SEND_MAIL_VIEW
@@ -651,6 +660,8 @@ func (mode Mode) IsHighlighted() bool {
 
 const SEARCH_PROMPT = "Search: "
 const TO_PROMPT = "To: "
+const CC_PROMPT = "Cc: "
+const BCC_PROMPT = "Bcc: "
 const SUBJECT_PROMPT = "Subject: "
 
 func getCommandEditor(amua *Amua) func(*gocui.View, gocui.Key, rune, gocui.Modifier) {
@@ -706,6 +717,7 @@ func (amua *Amua) sendMailDraw(v *gocui.View) error {
 	tos := concat(amua.newMail.to)
 	ccs := concat(amua.newMail.cc)
 	bccs := concat(amua.newMail.bcc)
+	fmt.Fprintf(v, "y: send, Ctrl+G: cancel, q: move to drafts, t: tos, c: ccs, b: bccs\n")
 	fmt.Fprintf(v, "To: %s\n", tos)
 	fmt.Fprintf(v, "Cc: %s\n", ccs)
 	fmt.Fprintf(v, "Bcc: %s\n", bccs)
@@ -737,8 +749,14 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 	case SendMailMode:
 		v, _ := g.View(curview)
 		err = amua.sendMailDraw(v)
-	case CommandMailMode:
+	case CommandNewMailMode:
 		displayPrompt(TO_PROMPT)
+	case CommandMailModeTo:
+		displayPrompt(TO_PROMPT)
+	case CommandMailModeCc:
+		displayPrompt(CC_PROMPT)
+	case CommandMailModeBcc:
+		displayPrompt(BCC_PROMPT)
 	case CommandSearchMode:
 		displayPrompt(SEARCH_PROMPT)
 	}
@@ -904,7 +922,34 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 		switch amua.mode {
 		case CommandSearchMode:
 			return enterSearch(true)(g, v)
-		case CommandMailMode:
+		case CommandMailModeTo:
+			var err error
+			amua.newMail.to, err = mail.ParseAddressList(getPromptInput())
+			if err != nil {
+				//flash error
+				return nil
+			}
+			setStatus("")
+			switchToMode(amua, g, SendMailMode)
+		case CommandMailModeCc:
+			var err error
+			amua.newMail.cc, err = mail.ParseAddressList(getPromptInput())
+			if err != nil {
+				//flash error
+				return nil
+			}
+			setStatus("")
+			switchToMode(amua, g, SendMailMode)
+		case CommandMailModeBcc:
+			var err error
+			amua.newMail.bcc, err = mail.ParseAddressList(getPromptInput())
+			if err != nil {
+				//flash error
+				return nil
+			}
+			setStatus("")
+			switchToMode(amua, g, SendMailMode)
+		case CommandNewMailMode:
 			if len(amua.newMail.to) == 0 {
 				var err error
 				amua.newMail.to, err = mail.ParseAddressList(getPromptInput())
@@ -946,7 +991,14 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 		return nil
 	}
 	sendMail := func(g *gocui.Gui, v *gocui.View) error {
-		panic("sendMail")
+		err := send(&amua.newMail, cfg.SMTPConfig)
+		if err != nil {
+			setStatus(err.Error())
+			return nil
+		}
+		setStatus("Sent to " + cfg.SMTPConfig.Host)
+		switchToMode(amua, g, MaildirMode)
+		return nil
 	}
 	type keybinding struct {
 		key interface{}
@@ -977,7 +1029,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			{gocui.KeyCtrlB, maildir_move(-10), false},
 			{gocui.KeyPgup, maildir_move(-10), false},
 			{'/', switchToModeInt(CommandSearchMode), false},
-			{'m', switchToModeInt(CommandMailMode), false},
+			{'m', switchToModeInt(CommandNewMailMode), false},
 		},
 		MESSAGE_VIEW: {
 			{'q', switchToModeInt(MaildirMode), false},
@@ -990,7 +1042,11 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 		},
 		SEND_MAIL_VIEW: {
 			{'q', switchToModeInt(MaildirMode), false},
+			{'t', switchToModeInt(CommandMailModeTo), false},
+			{'c', switchToModeInt(CommandMailModeCc), false},
+			{'b', switchToModeInt(CommandMailModeBcc), false},
 			{'y', sendMail, false},
+			{gocui.KeyCtrlG, switchToModeInt(MaildirMode), false},
 		},
 		STATUS_VIEW: {
 			{gocui.KeyEnter, commandEnter, false},
@@ -1132,6 +1188,8 @@ func init_known_maildirs(maildirs []string, onChange onMaildirChangeFn) ([]known
 	return known_maildirs, nil
 }
 
+var cfg *config.Config
+
 func main() {
 	var err error
 	var cfg_file = flag.String("config", "", "the config file")
@@ -1144,7 +1202,7 @@ func main() {
 	if *cfg_file == "" {
 		*cfg_file = filepath.Join(usr.HomeDir, ".amuarc")
 	}
-	cfg, err := config.NewConfig(*cfg_file)
+	cfg, err = config.NewConfig(*cfg_file)
 	if err != nil {
 		log.Fatal(err)
 	}
