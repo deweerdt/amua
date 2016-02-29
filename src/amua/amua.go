@@ -1307,10 +1307,13 @@ func main() {
 		curview := g.CurrentView()
 		defer func() {
 			go func() {
-				time.Sleep(1e9)
-				g.DeleteView(ERROR_VIEW)
-				g.SetCurrentView(curview.Name())
-				g.SetViewOnTop(curview.Name())
+				g.Execute(func(g *gocui.Gui) error {
+					time.Sleep(2e9)
+					g.DeleteView(ERROR_VIEW)
+					g.SetCurrentView(curview.Name())
+					g.SetViewOnTop(curview.Name())
+					return nil
+				})
 			}()
 		}()
 		if err := g.SetCurrentView(ERROR_VIEW); err != nil {
