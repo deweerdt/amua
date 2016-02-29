@@ -2,8 +2,19 @@ package util
 
 import (
 	"fmt"
+	"net/mail"
 )
 
+func ConcatAddresses(ads []*mail.Address) string {
+	ret := ""
+	for i, a := range ads {
+		if i != 0 {
+			ret += ", "
+		}
+		ret += a.String()
+	}
+	return ret
+}
 func SiteToHuman(size int64) string {
 	fs := float64(size)
 	const K = 1024

@@ -478,6 +478,7 @@ const (
 	SIDE_VIEW      = "side"
 	STATUS_VIEW    = "status"
 	SEND_MAIL_VIEW = "send_mail"
+	ERROR_VIEW     = "error"
 )
 
 type MessageView struct {
@@ -704,19 +705,9 @@ func (amua *Amua) sendMailDraw(v *gocui.View) error {
 	v.Wrap = true
 	v.SetOrigin(0, 0)
 
-	concat := func(ads []*mail.Address) string {
-		ret := ""
-		for i, a := range ads {
-			if i != 0 {
-				ret += ", "
-			}
-			ret += a.String()
-		}
-		return ret
-	}
-	tos := concat(amua.newMail.to)
-	ccs := concat(amua.newMail.cc)
-	bccs := concat(amua.newMail.bcc)
+	tos := util.ConcatAddresses(amua.newMail.to)
+	ccs := util.ConcatAddresses(amua.newMail.cc)
+	bccs := util.ConcatAddresses(amua.newMail.bcc)
 	fmt.Fprintf(v, "y: send, Ctrl+G: cancel, q: move to drafts, t: tos, c: ccs, b: bccs\n")
 	fmt.Fprintf(v, "To: %s\n", tos)
 	fmt.Fprintf(v, "Cc: %s\n", ccs)
@@ -750,13 +741,13 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 		v, _ := g.View(curview)
 		err = amua.sendMailDraw(v)
 	case CommandNewMailMode:
-		displayPrompt(TO_PROMPT)
+		displayPromptWithPrefill(TO_PROMPT, util.ConcatAddresses(amua.newMail.to))
 	case CommandMailModeTo:
-		displayPrompt(TO_PROMPT)
+		displayPromptWithPrefill(TO_PROMPT, util.ConcatAddresses(amua.newMail.to))
 	case CommandMailModeCc:
-		displayPrompt(CC_PROMPT)
+		displayPromptWithPrefill(CC_PROMPT, util.ConcatAddresses(amua.newMail.cc))
 	case CommandMailModeBcc:
-		displayPrompt(BCC_PROMPT)
+		displayPromptWithPrefill(BCC_PROMPT, util.ConcatAddresses(amua.newMail.bcc))
 	case CommandSearchMode:
 		displayPrompt(SEARCH_PROMPT)
 	}
@@ -783,6 +774,8 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 	}
 	return nil
 }
+
+var displayError func(s string)
 
 func keybindings(amua *Amua, g *gocui.Gui) error {
 	switchToModeInt := func(mode Mode) func(g *gocui.Gui, v *gocui.View) error {
@@ -926,7 +919,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			var err error
 			amua.newMail.to, err = mail.ParseAddressList(getPromptInput())
 			if err != nil {
-				//flash error
+				displayError(err.Error())
 				return nil
 			}
 			setStatus("")
@@ -954,10 +947,11 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 				var err error
 				amua.newMail.to, err = mail.ParseAddressList(getPromptInput())
 				if err != nil {
-					//flash error
+					displayError(err.Error())
 					return nil
 				}
-				displayPrompt(SUBJECT_PROMPT)
+				displayPromptWithPrefill(SUBJECT_PROMPT, amua.newMail.subject)
+				amua.newMail.subject = ""
 			} else if amua.newMail.subject == "" {
 				amua.newMail.subject = getPromptInput()
 				/* Exec $EDITOR */
@@ -991,6 +985,17 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 		return nil
 	}
 	sendMail := func(g *gocui.Gui, v *gocui.View) error {
+		err := send(&amua.newMail, cfg.SMTPConfig)
+		if err != nil {
+			setStatus(err.Error())
+			return nil
+		}
+		setStatus("Sent to " + cfg.SMTPConfig.Host)
+		switchToMode(amua, g, MaildirMode)
+		amua.newMail = NewMail{}
+		return nil
+	}
+	replyMessage := func(g *gocui.Gui, v *gocui.View) error {
 		err := send(&amua.newMail, cfg.SMTPConfig)
 		if err != nil {
 			setStatus(err.Error())
@@ -1039,6 +1044,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			{gocui.KeySpace, scrollMessageView(10), false},
 			{'j', scrollMessageView(1), false},
 			{'k', scrollMessageView(-1), false},
+			{'r', replyMessage, false},
 		},
 		SEND_MAIL_VIEW: {
 			{'q', switchToModeInt(MaildirMode), false},
@@ -1097,6 +1103,7 @@ func drawSlider(amua *Amua, g *gocui.Gui) {
 
 var setStatus func(s string)
 var displayPrompt func(s string)
+var displayPromptWithPrefill func(s string, prefill string)
 var getPromptInput func() string
 
 func get_layout(amua *Amua) func(g *gocui.Gui) error {
@@ -1248,7 +1255,7 @@ func main() {
 		log.Panicln(err)
 	}
 
-	displayPrompt = func(s string) {
+	displayPromptWithPrefill = func(s string, prefill string) {
 		amua.prompt = s
 		v, _ := g.View(STATUS_VIEW)
 		v.Clear()
@@ -1257,7 +1264,11 @@ func main() {
 		v.Editable = true
 		fmt.Fprintf(v, amua.prompt)
 		cx, cy := v.Cursor()
-		v.SetCursor(cx+len(amua.prompt), cy)
+		fmt.Fprintf(v, prefill)
+		v.SetCursor(cx+len(amua.prompt)+len(prefill), cy)
+	}
+	displayPrompt = func(s string) {
+		displayPromptWithPrefill(s, "")
 	}
 	getPromptInput = func() string {
 		v, err := g.View(STATUS_VIEW)
@@ -1281,6 +1292,35 @@ func main() {
 		v.Clear()
 		format := fmt.Sprintf("\033[7m%%-%ds\033[0m", w)
 		fmt.Fprintf(v, format, s)
+	}
+	displayError = func(s string) {
+		maxX, maxY := g.Size()
+		if v, err := g.SetView(ERROR_VIEW, maxX/2-len(s), maxY/2, maxX/2+len(s), maxY/2+2); err != nil {
+			if err != gocui.ErrUnknownView {
+				return
+			}
+			v.Wrap = true
+			v.Frame = true
+			v.BgColor = gocui.ColorRed
+			fmt.Fprintln(v, s)
+		}
+		curview := g.CurrentView()
+		defer func() {
+			go func() {
+				time.Sleep(1e9)
+				g.DeleteView(ERROR_VIEW)
+				g.SetCurrentView(curview.Name())
+				g.SetViewOnTop(curview.Name())
+			}()
+		}()
+		if err := g.SetCurrentView(ERROR_VIEW); err != nil {
+			return
+		}
+		_, err = g.SetViewOnTop(ERROR_VIEW)
+		if err != nil {
+			return
+		}
+		return
 	}
 	if err := g.MainLoop(); err != nil && err != gocui.ErrQuit {
 		log.Panicln(err)
