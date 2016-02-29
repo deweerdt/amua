@@ -1040,6 +1040,10 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 		switchToMode(amua, g, CommandNewMailMode)
 		return nil
 	}
+	pipeMessage := func(g *gocui.Gui, v *gocui.View) error {
+		/* exec a command, pipe the message there */
+		return nil
+	}
 	type keybinding struct {
 		key interface{}
 		fn  gocui.KeybindingHandler
@@ -1072,6 +1076,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			{'m', switchToModeInt(CommandNewMailMode), false},
 			{'r', replyMessage, false},
 			{'g', groupReplyMessage, false},
+			{'|', pipeMessage, false},
 		},
 		MESSAGE_VIEW: {
 			{'q', switchToModeInt(MaildirMode), false},
@@ -1083,6 +1088,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			{'k', scrollMessageView(-1), false},
 			{'r', replyMessage, false},
 			{'g', groupReplyMessage, false},
+			{'|', pipeMessage, false},
 		},
 		SEND_MAIL_VIEW: {
 			{'q', switchToModeInt(MaildirMode), false},
