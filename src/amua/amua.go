@@ -142,6 +142,7 @@ func flagsToFile(f MessageFlags) string {
 type Message struct {
 	From    string
 	To      string
+	ReplyTo string
 	Subject string
 	Date    time.Time
 	path    string
@@ -150,6 +151,22 @@ type Message struct {
 	Flags   MessageFlags
 }
 
+func getTo(m *Message) *mail.Address {
+	if m.ReplyTo != "" {
+		ret, err := mail.ParseAddress(m.ReplyTo)
+		if err == nil {
+			return ret
+		}
+	}
+	if m.From != "" {
+		ret, err := mail.ParseAddress(m.From)
+		if err == nil {
+			return ret
+		}
+	}
+
+	return nil
+}
 func dehtmlize(in *bytes.Buffer) *bytes.Buffer {
 	out, err := html2text.FromReader(in)
 	if err != nil {
@@ -337,14 +354,15 @@ func (m *Message) Read(p []byte) (int, error) {
 
 var dec = new(gomime.WordDecoder)
 
-func LoadMessage(path string) (*Message, error) {
-	mimedec := func(hdr string) string {
-		dhdr, err := dec.DecodeHeader(hdr)
-		if err != nil {
-			dhdr = hdr
-		}
-		return dhdr
+func mimedec(hdr string) string {
+	dhdr, err := dec.DecodeHeader(hdr)
+	if err != nil {
+		dhdr = hdr
 	}
+	return dhdr
+}
+
+func LoadMessage(path string) (*Message, error) {
 	m := &Message{path: path}
 	f, err := os.Open(path)
 	if err != nil {
@@ -360,6 +378,7 @@ func LoadMessage(path string) (*Message, error) {
 		return nil, err
 	}
 	m.From = mimedec(msg.Header.Get("From"))
+	m.ReplyTo = mimedec(msg.Header.Get("reply-to"))
 	m.To = mimedec(msg.Header.Get("To"))
 
 	m.Subject = mimedec(msg.Header.Get("Subject"))
@@ -741,7 +760,9 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 		v, _ := g.View(curview)
 		err = amua.sendMailDraw(v)
 	case CommandNewMailMode:
-		displayPromptWithPrefill(TO_PROMPT, util.ConcatAddresses(amua.newMail.to))
+		tos := util.ConcatAddresses(amua.newMail.to)
+		amua.newMail.to = []*mail.Address{}
+		displayPromptWithPrefill(TO_PROMPT, tos)
 	case CommandMailModeTo:
 		displayPromptWithPrefill(TO_PROMPT, util.ConcatAddresses(amua.newMail.to))
 	case CommandMailModeCc:
@@ -996,13 +1017,10 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 		return nil
 	}
 	replyMessage := func(g *gocui.Gui, v *gocui.View) error {
-		err := send(&amua.newMail, cfg.SMTPConfig)
-		if err != nil {
-			setStatus(err.Error())
-			return nil
-		}
-		setStatus("Sent to " + cfg.SMTPConfig.Host)
-		switchToMode(amua, g, MaildirMode)
+		m := amua.cur_message()
+		amua.newMail.to = []*mail.Address{getTo(m)}
+		amua.newMail.subject = "Re: " + m.Subject
+		switchToMode(amua, g, CommandNewMailMode)
 		return nil
 	}
 	type keybinding struct {
@@ -1035,6 +1053,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			{gocui.KeyPgup, maildir_move(-10), false},
 			{'/', switchToModeInt(CommandSearchMode), false},
 			{'m', switchToModeInt(CommandNewMailMode), false},
+			{'r', replyMessage, false},
 		},
 		MESSAGE_VIEW: {
 			{'q', switchToModeInt(MaildirMode), false},
@@ -1263,9 +1282,8 @@ func main() {
 		v.SetCursor(0, 0)
 		v.Editable = true
 		fmt.Fprintf(v, amua.prompt)
-		cx, cy := v.Cursor()
 		fmt.Fprintf(v, prefill)
-		v.SetCursor(cx+len(amua.prompt)+len(prefill), cy)
+		v.SetCursor(len(amua.prompt)+len(prefill), 0)
 	}
 	displayPrompt = func(s string) {
 		displayPromptWithPrefill(s, "")
