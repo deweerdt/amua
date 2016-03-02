@@ -858,6 +858,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 				if strings.Contains(m.Subject, amua.searchPattern) {
 					setStatus("Found: " + amua.searchPattern + " in " + amua.cur_maildir_view.md.path)
 					found = true
+					amua.cur_maildir_view.cur_top = idx
 					amua.cur_maildir_view.cur = idx
 					break
 				}
