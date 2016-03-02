@@ -200,7 +200,7 @@ func partSummary(m *mime.MimePart) *bytes.Buffer {
 	return bytes.NewBufferString(str)
 }
 
-func traverse(m *mime.MimePart) []*bytes.Buffer {
+func traverse(m *mime.MimePart, showParts bool) []*bytes.Buffer {
 	ret := make([]*bytes.Buffer, 0)
 	if m.MimeType.IsMultipart() && m.Child == nil {
 		return ret
@@ -214,7 +214,7 @@ func traverse(m *mime.MimePart) []*bytes.Buffer {
 	case mime.MultipartRelated:
 		fallthrough
 	case mime.MultipartMixed:
-		ret = append(ret, traverse(m.Child)...)
+		ret = append(ret, traverse(m.Child, showParts)...)
 	case mime.MultipartAlternative:
 		var plain *mime.MimePart
 		var html *mime.MimePart
@@ -241,7 +241,7 @@ func traverse(m *mime.MimePart) []*bytes.Buffer {
 			}
 		} else if last != nil {
 			if last.MimeType.IsMultipart() {
-				ret = append(ret, traverse(last)...)
+				ret = append(ret, traverse(last, showParts)...)
 			} else {
 				ret = append(ret, partSummary(last))
 			}
@@ -263,12 +263,13 @@ func traverse(m *mime.MimePart) []*bytes.Buffer {
 
 	}
 	if m.Next != nil {
-		ret = append(ret, traverse(m.Next)...)
+		ret = append(ret, traverse(m.Next, showParts)...)
 	}
 	return ret
 }
 
 type MessageAsMimeTree Message
+type MessageAsText Message
 
 func (m *MessageAsMimeTree) Draw(amua *Amua, g *gocui.Gui) error {
 	v, err := g.View(MESSAGE_VIEW)
@@ -344,7 +345,56 @@ func (m *Message) Read(p []byte) (int, error) {
 			return 0, err
 		}
 
-		m.rs.buffers = traverse(mtree)
+		m.rs.buffers = traverse(mtree, true)
+
+		readers := make([]io.Reader, len(m.rs.buffers))
+		for i, b := range m.rs.buffers {
+			newb := bytes.Replace(b.Bytes(), []byte("\r\n"), []byte("\n"), -1)
+			readers[i] = bytes.NewBuffer(newb)
+		}
+		m.rs.r = io.MultiReader(readers...)
+	}
+	ret, err := m.rs.r.Read(p)
+	if err != nil {
+		m.rs = nil
+	}
+	return ret, err
+}
+
+func (m *MessageAsText) Draw(amua *Amua, g *gocui.Gui) error {
+	v, err := g.View(MESSAGE_VIEW)
+	if err != nil {
+		return err
+	}
+	v.Clear()
+	v.Wrap = true
+	v.SetOrigin(0, 0)
+
+	_, err = io.Copy(v, m)
+	if err != nil {
+		return err
+	}
+	return nil
+
+}
+
+func (m *MessageAsText) Read(p []byte) (int, error) {
+	var err error
+	if m.rs == nil {
+		m.rs = &read_state{}
+		f, err := os.Open(m.path)
+		if err != nil {
+			m.rs = nil
+			return 0, err
+		}
+		defer f.Close()
+		mtree, err := mime.GetMimeTree(f, 10)
+		if err != nil {
+			m.rs = nil
+			return 0, err
+		}
+
+		m.rs.buffers = traverse(mtree, true)
 
 		readers := make([]io.Reader, len(m.rs.buffers))
 		for i, b := range m.rs.buffers {
@@ -991,6 +1041,11 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 					log.Fatal(err)
 				}
 				defer os.Remove(tf.Name())
+				tf.Close()
+				err = ioutil.WriteFile(tf.Name(), amua.newMail.body, 0600)
+				if err != nil {
+					log.Fatal(err)
+				}
 
 				cmd := exec.Command("vim", tf.Name())
 				cmd.Stdin = os.Stdin
@@ -1001,9 +1056,6 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 				amua.newMail.body, err = ioutil.ReadFile(tf.Name())
 				if err != nil {
 					log.Fatal(err.Error())
-				}
-				if err := tf.Close(); err != nil {
-					log.Fatal(err)
 				}
 				setStatus("")
 				switchToMode(amua, g, SendMailMode)
@@ -1030,6 +1082,12 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 		m := amua.cur_message()
 		amua.newMail.to = getTo(m)
 		amua.newMail.subject = "Re: " + m.Subject
+		buf, err := ioutil.ReadAll((*MessageAsText)(m))
+		if err != nil {
+			return err
+		}
+		buf = bytes.Replace(buf, []byte("\n"), []byte("\n> "), -1)
+		amua.newMail.body = append([]byte("> "), buf...)
 		switchToMode(amua, g, CommandNewMailMode)
 		return nil
 	}
