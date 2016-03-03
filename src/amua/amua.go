@@ -1078,27 +1078,27 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 		amua.newMail = NewMail{}
 		return nil
 	}
-	replyMessage := func(g *gocui.Gui, v *gocui.View) error {
-		m := amua.cur_message()
-		amua.newMail.to = getTo(m)
-		amua.newMail.subject = "Re: " + m.Subject
-		buf, err := ioutil.ReadAll((*MessageAsText)(m))
-		if err != nil {
-			return err
+	reply := func(group bool) func(g *gocui.Gui, v *gocui.View) error {
+		return func(g *gocui.Gui, v *gocui.View) error {
+			m := amua.cur_message()
+			amua.newMail.to = getTo(m)
+			if group {
+				amua.newMail.cc = getCCs(m)
+			}
+			amua.newMail.subject = "Re: " + m.Subject
+			buf, err := ioutil.ReadAll((*MessageAsText)(m))
+			if err != nil {
+				return err
+			}
+			buf = bytes.Replace(buf, []byte("\n"), []byte("\n> "), -1)
+			reply_header := fmt.Sprintf("On %s, %s wrote:\n> ", m.Date.Format("Mon Jan 2 15:04:05 -0700 MST 2006"), m.From)
+			amua.newMail.body = append([]byte(reply_header), buf...)
+			switchToMode(amua, g, CommandNewMailMode)
+			return nil
 		}
-		buf = bytes.Replace(buf, []byte("\n"), []byte("\n> "), -1)
-		amua.newMail.body = append([]byte("> "), buf...)
-		switchToMode(amua, g, CommandNewMailMode)
-		return nil
 	}
-	groupReplyMessage := func(g *gocui.Gui, v *gocui.View) error {
-		m := amua.cur_message()
-		amua.newMail.to = getTo(m)
-		amua.newMail.cc = getCCs(m)
-		amua.newMail.subject = "Re: " + m.Subject
-		switchToMode(amua, g, CommandNewMailMode)
-		return nil
-	}
+	replyMessage := reply(false)
+	groupReplyMessage := reply(true)
 	pipeMessage := func(g *gocui.Gui, v *gocui.View) error {
 		/* exec a command, pipe the message there */
 		return nil
