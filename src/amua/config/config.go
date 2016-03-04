@@ -12,8 +12,13 @@ type SMTPConfig struct {
 	User   string
 	Passwd string
 }
+
+type AmuaConfig struct {
+	Maildirs []string
+	Me       []string
+}
 type Config struct {
-	Maildirs   []string
+	AmuaConfig AmuaConfig
 	SMTPConfig SMTPConfig
 }
 

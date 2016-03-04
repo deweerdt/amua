@@ -152,14 +152,27 @@ type Message struct {
 	Flags   MessageFlags
 }
 
-func getCCs(m *Message) []*mail.Address {
-	ret, err := mail.ParseAddressList(m.CCs)
-	if err == nil {
-		return ret
+var isMe func(m *mail.Address) bool
+
+func buildCCs(m *Message) []*mail.Address {
+	cc, err := mail.ParseAddressList(m.CCs)
+	if err != nil {
+		cc = []*mail.Address{}
 	}
-	return []*mail.Address{}
+	to, err := mail.ParseAddressList(m.To)
+	if err != nil {
+		to = []*mail.Address{}
+	}
+	all := append(to, cc...)
+	ret := make([]*mail.Address, 0)
+	for _, e := range all {
+		if !isMe(e) {
+			ret = append(ret, e)
+		}
+	}
+	return ret
 }
-func getTo(m *Message) []*mail.Address {
+func buildTo(m *Message) []*mail.Address {
 	if m.ReplyTo != "" {
 		ret, err := mail.ParseAddress(m.ReplyTo)
 		if err == nil {
@@ -1081,9 +1094,9 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 	reply := func(group bool) func(g *gocui.Gui, v *gocui.View) error {
 		return func(g *gocui.Gui, v *gocui.View) error {
 			m := amua.cur_message()
-			amua.newMail.to = getTo(m)
+			amua.newMail.to = buildTo(m)
 			if group {
-				amua.newMail.cc = getCCs(m)
+				amua.newMail.cc = buildCCs(m)
 			}
 			amua.newMail.subject = "Re: " + m.Subject
 			buf, err := ioutil.ReadAll((*MessageAsText)(m))
@@ -1342,7 +1355,7 @@ func main() {
 		})
 	}
 
-	amua.known_maildirs, err = init_known_maildirs(cfg.Maildirs, onchange)
+	amua.known_maildirs, err = init_known_maildirs(cfg.AmuaConfig.Maildirs, onchange)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -1426,6 +1439,17 @@ func main() {
 			return
 		}
 		return
+	}
+	isMe = func(m *mail.Address) bool {
+		for _, a := range cfg.AmuaConfig.Me {
+			if m.Address == a {
+				return true
+			}
+			if m.Address == fmt.Sprintf("<%s>", a) {
+				return true
+			}
+		}
+		return false
 	}
 	if err := g.MainLoop(); err != nil && err != gocui.ErrQuit {
 		log.Panicln(err)
