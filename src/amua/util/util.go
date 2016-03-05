@@ -34,9 +34,9 @@ func SiteToHuman(size int64) string {
 		return fmt.Sprintf("%d", size)
 	}
 }
-func TruncateString(s string, max_len int) string {
-	if len(s) > max_len {
-		return s[:max_len]
+func TruncateString(s string, maxLen int) string {
+	if len(s) > maxLen {
+		return s[:maxLen]
 	}
 	return s
 
