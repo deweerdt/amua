@@ -37,12 +37,12 @@ type Maildir struct {
 	messages []*Message
 }
 
-type onMaildirChangeFn func(*known_maildir)
+type onMaildirChangeFn func(*knownMaildir)
 
-func (km *known_maildir) Start(onChange onMaildirChangeFn) {
+func (km *knownMaildir) Start(onChange onMaildirChangeFn) {
 	for {
 		select {
-		case <-km.stop_monitor:
+		case <-km.stopMonitor:
 			return
 		case <-time.After(time.Second * 1):
 			changed, _ := processNew(km.maildir, km.active)
@@ -52,11 +52,11 @@ func (km *known_maildir) Start(onChange onMaildirChangeFn) {
 		}
 	}
 }
-func (km *known_maildir) Stop() {
-	km.stop_monitor <- true
+func (km *knownMaildir) Stop() {
+	km.stopMonitor <- true
 }
 
-type read_state struct {
+type readState struct {
 	r       io.Reader // a reader we read the email from
 	buffers []*bytes.Buffer
 }
@@ -147,7 +147,7 @@ type Message struct {
 	ReplyTo string
 	Date    time.Time
 	path    string
-	rs      *read_state
+	rs      *readState
 	size    int64
 	Flags   MessageFlags
 }
@@ -308,7 +308,7 @@ func (m *MessageAsMimeTree) Draw(amua *Amua, g *gocui.Gui) error {
 
 func (m *MessageAsMimeTree) Read(p []byte) (int, error) {
 	if m.rs == nil {
-		m.rs = &read_state{}
+		m.rs = &readState{}
 		var printM func(w io.Writer, depth int, m *mime.MimePart)
 		printM = func(w io.Writer, depth int, m *mime.MimePart) {
 			fmt.Fprintf(w, "%s%s\n", strings.Repeat("-", depth), mime.MimeTypeTxt(m.MimeType))
@@ -345,7 +345,7 @@ func (m *MessageAsMimeTree) Read(p []byte) (int, error) {
 func (m *Message) Read(p []byte) (int, error) {
 	var err error
 	if m.rs == nil {
-		m.rs = &read_state{}
+		m.rs = &readState{}
 		f, err := os.Open(m.path)
 		if err != nil {
 			m.rs = nil
@@ -394,7 +394,7 @@ func (m *MessageAsText) Draw(amua *Amua, g *gocui.Gui) error {
 func (m *MessageAsText) Read(p []byte) (int, error) {
 	var err error
 	if m.rs == nil {
-		m.rs = &read_state{}
+		m.rs = &readState{}
 		f, err := os.Open(m.path)
 		if err != nil {
 			m.rs = nil
@@ -473,30 +473,30 @@ func processNew(md *Maildir, active bool) (bool, error) {
 		return false, err
 	}
 	for _, fi := range fis {
-		old_name := fi.Name()
-		new_name := fmt.Sprintf("%s:2,", old_name)
-		err := os.Rename(filepath.Join(newdir, old_name), filepath.Join(curdir, new_name))
+		oldName := fi.Name()
+		newName := fmt.Sprintf("%s:2,", oldName)
+		err := os.Rename(filepath.Join(newdir, oldName), filepath.Join(curdir, newName))
 		if err != nil {
 			return false, err
 		}
 		if active {
-			m, err := LoadMessage(filepath.Join(curdir, new_name))
+			m, err := LoadMessage(filepath.Join(curdir, newName))
 			if err != nil {
 				return false, err
 			}
 			md.messages = append(md.messages, m)
 		} else {
-			md.messages = append(md.messages, &Message{path: filepath.Join(curdir, new_name)})
+			md.messages = append(md.messages, &Message{path: filepath.Join(curdir, newName)})
 		}
 		changed = true
 	}
 	return changed, nil
 }
 
-func LoadMaildir(md_path string, active bool) (*Maildir, error) {
+func LoadMaildir(mdPath string, active bool) (*Maildir, error) {
 	md := &Maildir{}
-	md.path = md_path
-	curdir := filepath.Join(md_path, "cur")
+	md.path = mdPath
+	curdir := filepath.Join(mdPath, "cur")
 	fis, err := ioutil.ReadDir(curdir)
 	if err != nil {
 		return nil, err
@@ -545,21 +545,21 @@ const (
 
 type Amua struct {
 	mode             Mode
-	prev_mode        Mode
-	cur_maildir_view *MaildirView
-	cur_message_view *MessageView
-	known_maildirs   []known_maildir
+	prevMode        Mode
+	curMaildirView *MaildirView
+	curMessage_view *MessageView
+	knownMaildirs   []knownMaildir
 	curMaildir       int
 	searchPattern    string
 	prompt           string
 	newMail          NewMail
 }
 
-func (amua *Amua) get_message(idx int) *Message {
-	return amua.cur_maildir_view.md.messages[idx]
+func (amua *Amua) getMessage(idx int) *Message {
+	return amua.curMaildirView.md.messages[idx]
 }
-func (amua *Amua) cur_message() *Message {
-	return amua.get_message(amua.cur_maildir_view.cur)
+func (amua *Amua) curMessage() *Message {
+	return amua.getMessage(amua.curMaildirView.cur)
 }
 
 const (
@@ -610,7 +610,7 @@ func scrollMessageView(dy int) func(g *gocui.Gui, v *gocui.View) error {
 func scrollSideView(amua *Amua, dy int) func(g *gocui.Gui, v *gocui.View) error {
 	return func(g *gocui.Gui, v *gocui.View) error {
 		_, cy := v.Cursor()
-		if cy+dy >= len(amua.known_maildirs) {
+		if cy+dy >= len(amua.knownMaildirs) {
 			return nil
 		}
 		if cy+dy < 0 {
@@ -622,7 +622,7 @@ func scrollSideView(amua *Amua, dy int) func(g *gocui.Gui, v *gocui.View) error 
 }
 
 func (amua *Amua) applyCurMaildirChanges() error {
-	md := amua.cur_maildir_view.md
+	md := amua.curMaildirView.md
 	for _, m := range md.messages {
 		if (m.Flags & Trashed) != 0 {
 			err := os.Remove(m.path)
@@ -636,9 +636,9 @@ func (amua *Amua) applyCurMaildirChanges() error {
 		if i != -1 {
 			path = path[:i]
 		}
-		new_path := fmt.Sprintf("%s:2,%s", path, flagsToFile(m.Flags))
-		if m.path != new_path {
-			err := os.Rename(m.path, new_path)
+		newPath := fmt.Sprintf("%s:2,%s", path, flagsToFile(m.Flags))
+		if m.path != newPath {
+			err := os.Rename(m.path, newPath)
 			if err != nil {
 				panic(err)
 			}
@@ -647,16 +647,16 @@ func (amua *Amua) applyCurMaildirChanges() error {
 	return nil
 }
 func (amua *Amua) RefreshMaildir(g *gocui.Gui, v *gocui.View) error {
-	md, err := LoadMaildir(amua.known_maildirs[amua.curMaildir].path, true)
+	md, err := LoadMaildir(amua.knownMaildirs[amua.curMaildir].path, true)
 	if err != nil {
 		return err
 	}
-	amua.known_maildirs[amua.curMaildir].maildir = md
+	amua.knownMaildirs[amua.curMaildir].maildir = md
 	mdv := &MaildirView{md: md}
-	amua.cur_maildir_view = mdv
+	amua.curMaildirView = mdv
 	v.SetCursor(0, 0)
 	v.SetOrigin(0, 0)
-	err = amua.cur_maildir_view.Draw(v)
+	err = amua.curMaildirView.Draw(v)
 	if err != nil {
 		fmt.Fprintf(v, err.Error())
 	}
@@ -669,18 +669,18 @@ func drawKnownMaildirs(amua *Amua, g *gocui.Gui, v *gocui.View) error {
 	v.Clear()
 	v.Frame = false
 	w, h := v.Size()
-	displayed := len(amua.known_maildirs)
-	if len(amua.known_maildirs) > h {
+	displayed := len(amua.knownMaildirs)
+	if len(amua.knownMaildirs) > h {
 		displayed = h
 	}
 	fillers := h - displayed
 	space := 1
 	for i := 0; i < displayed; i++ {
-		current := amua.known_maildirs[i].maildir == amua.cur_maildir_view.md
-		nr_msgs := fmt.Sprintf("(%d)", len(amua.known_maildirs[i].maildir.messages))
-		available_width := w - space - len(nr_msgs) - 3
-		strfmt := fmt.Sprintf(" %%-%ds %s ", available_width, nr_msgs)
-		str := fmt.Sprintf(strfmt, util.TruncateString(amua.known_maildirs[i].path, available_width))
+		current := amua.knownMaildirs[i].maildir == amua.curMaildirView.md
+		nrMsgs := fmt.Sprintf("(%d)", len(amua.knownMaildirs[i].maildir.messages))
+		availableWidth := w - space - len(nrMsgs) - 3
+		strfmt := fmt.Sprintf(" %%-%ds %s ", availableWidth, nrMsgs)
+		str := fmt.Sprintf(strfmt, util.TruncateString(amua.knownMaildirs[i].path, availableWidth))
 		if current {
 			colorstring.Fprintf(v, "[bold]%s", str)
 		} else {
@@ -701,7 +701,7 @@ func selectNewMaildir(amua *Amua) func(g *gocui.Gui, v *gocui.View) error {
 		_, cy := v.Cursor()
 		selected := oy + cy
 		if amua.curMaildir != selected {
-			amua.known_maildirs[amua.curMaildir].active = false
+			amua.knownMaildirs[amua.curMaildir].active = false
 			amua.curMaildir = selected
 			mv, err := g.View(MAILDIR_VIEW)
 			if err != nil {
@@ -813,21 +813,21 @@ func switchToMode(amua *Amua, g *gocui.Gui, mode Mode) error {
 		v := modeToView(g, amua.mode)
 		v.Highlight = false
 	}
-	amua.prev_mode = amua.mode
+	amua.prevMode = amua.mode
 	amua.mode = mode
 	curview := modeToViewStr(amua.mode)
 	var err error
 	switch amua.mode {
 	case MessageMode:
-		m := amua.cur_message()
+		m := amua.curMessage()
 		m.Flags |= Seen
 		err = m.Draw(amua, g)
 	case MessageMimeMode:
-		m := amua.cur_message()
+		m := amua.curMessage()
 		err = (*MessageAsMimeTree)(m).Draw(amua, g)
 	case MaildirMode:
 		v, _ := g.View(curview)
-		err = amua.cur_maildir_view.Draw(v)
+		err = amua.curMaildirView.Draw(v)
 	case SendMailMode:
 		v, _ := g.View(curview)
 		err = amua.sendMailDraw(v)
@@ -877,17 +877,17 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 		}
 	}
 
-	maildir_move := func(dy int) func(g *gocui.Gui, v *gocui.View) error {
+	maildirMove := func(dy int) func(g *gocui.Gui, v *gocui.View) error {
 		return func(g *gocui.Gui, v *gocui.View) error {
-			amua.cur_maildir_view.scroll(v, dy)
+			amua.curMaildirView.scroll(v, dy)
 			drawSlider(amua, g)
 			return nil
 		}
 	}
-	maildir_all_down := func() func(g *gocui.Gui, v *gocui.View) error {
+	maildirAllDown := func() func(g *gocui.Gui, v *gocui.View) error {
 		return func(g *gocui.Gui, v *gocui.View) error {
-			dy := len(amua.cur_maildir_view.md.messages) - amua.cur_maildir_view.cur - 1
-			amua.cur_maildir_view.scroll(v, dy)
+			dy := len(amua.curMaildirView.md.messages) - amua.curMaildirView.cur - 1
+			amua.curMaildirView.scroll(v, dy)
 			drawSlider(amua, g)
 			return nil
 		}
@@ -903,26 +903,26 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 	}
 	search := func(forward bool) func(g *gocui.Gui, v *gocui.View) error {
 		return func(g *gocui.Gui, v *gocui.View) error {
-			setStatus("Looking for: " + amua.searchPattern + " in " + amua.cur_maildir_view.md.path)
+			setStatus("Looking for: " + amua.searchPattern + " in " + amua.curMaildirView.md.path)
 			found := false
 			direction := 1
 			if forward == false {
 				direction = -1
 			}
-			for i := 0; i < len(amua.cur_maildir_view.md.messages); i++ {
-				idx := ((direction * i) + amua.cur_maildir_view.cur + direction) % len(amua.cur_maildir_view.md.messages)
+			for i := 0; i < len(amua.curMaildirView.md.messages); i++ {
+				idx := ((direction * i) + amua.curMaildirView.cur + direction) % len(amua.curMaildirView.md.messages)
 				if idx < 0 {
-					idx = len(amua.cur_maildir_view.md.messages) + idx
+					idx = len(amua.curMaildirView.md.messages) + idx
 				}
 				if idx < 0 {
 					panic(idx)
 				}
-				m := amua.get_message(idx)
+				m := amua.getMessage(idx)
 				if strings.Contains(m.Subject, amua.searchPattern) {
-					setStatus("Found: " + amua.searchPattern + " in " + amua.cur_maildir_view.md.path)
+					setStatus("Found: " + amua.searchPattern + " in " + amua.curMaildirView.md.path)
 					found = true
-					amua.cur_maildir_view.cur_top = idx
-					amua.cur_maildir_view.cur = idx
+					amua.curMaildirView.curTop = idx
+					amua.curMaildirView.cur = idx
 					break
 				}
 			}
@@ -931,7 +931,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 				if err != nil {
 					return err
 				}
-				err = amua.cur_maildir_view.Draw(mv)
+				err = amua.curMaildirView.Draw(mv)
 				if err != nil {
 					setStatus(err.Error())
 				}
@@ -957,33 +957,33 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 	}
 	cancelSearch := func(g *gocui.Gui, v *gocui.View) error {
 		setStatus("")
-		return switchToMode(amua, g, amua.prev_mode)
+		return switchToMode(amua, g, amua.prevMode)
 	}
 	setFlag := func(flag MessageFlags) func(g *gocui.Gui, v *gocui.View) error {
 		return func(g *gocui.Gui, v *gocui.View) error {
-			m := amua.cur_message()
+			m := amua.curMessage()
 			m.Flags |= flag
-			amua.cur_maildir_view.Draw(v)
+			amua.curMaildirView.Draw(v)
 			return nil
 		}
 	}
 	unsetFlag := func(flag MessageFlags) func(g *gocui.Gui, v *gocui.View) error {
 		return func(g *gocui.Gui, v *gocui.View) error {
-			m := amua.cur_message()
+			m := amua.curMessage()
 			m.Flags &= ^flag
-			amua.cur_maildir_view.Draw(v)
+			amua.curMaildirView.Draw(v)
 			return nil
 		}
 	}
 	toggleFlag := func(flag MessageFlags) func(g *gocui.Gui, v *gocui.View) error {
 		return func(g *gocui.Gui, v *gocui.View) error {
-			m := amua.cur_message()
+			m := amua.curMessage()
 			if (m.Flags & flag) != 0 {
 				m.Flags &= ^flag
 			} else {
 				m.Flags |= flag
 			}
-			amua.cur_maildir_view.Draw(v)
+			amua.curMaildirView.Draw(v)
 			return nil
 		}
 	}
@@ -1093,7 +1093,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 	}
 	reply := func(group bool) func(g *gocui.Gui, v *gocui.View) error {
 		return func(g *gocui.Gui, v *gocui.View) error {
-			m := amua.cur_message()
+			m := amua.curMessage()
 			amua.newMail.to = buildTo(m)
 			if group {
 				amua.newMail.cc = buildCCs(m)
@@ -1104,8 +1104,8 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 				return err
 			}
 			buf = bytes.Replace(buf, []byte("\n"), []byte("\n> "), -1)
-			reply_header := fmt.Sprintf("On %s, %s wrote:\n> ", m.Date.Format("Mon Jan 2 15:04:05 -0700 MST 2006"), m.From)
-			amua.newMail.body = append([]byte(reply_header), buf...)
+			replyHeader := fmt.Sprintf("On %s, %s wrote:\n> ", m.Date.Format("Mon Jan 2 15:04:05 -0700 MST 2006"), m.From)
+			amua.newMail.body = append([]byte(replyHeader), buf...)
 			switchToMode(amua, g, CommandNewMailMode)
 			return nil
 		}
@@ -1129,21 +1129,21 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 			{'q', quit, false},
 			{'d', deleteMessage, false},
 			{'u', undeleteMessage, false},
-			{'G', maildir_all_down(), false},
-			{'k', maildir_move(-1), false},
-			{gocui.KeyArrowUp, maildir_move(-1), false},
-			{'j', maildir_move(1), false},
+			{'G', maildirAllDown(), false},
+			{'k', maildirMove(-1), false},
+			{gocui.KeyArrowUp, maildirMove(-1), false},
+			{'j', maildirMove(1), false},
 			{'n', search(true), false},
 			{'N', search(false), false},
 			{'$', syncMaildir, false},
 			{'F', toggleFlagged, false},
 			{gocui.KeyCtrlR, readMessage, false},
 			{gocui.KeyCtrlN, unreadMessage, false},
-			{gocui.KeyArrowDown, maildir_move(1), false},
-			{gocui.KeyCtrlF, maildir_move(10), false},
-			{gocui.KeyPgdn, maildir_move(10), false},
-			{gocui.KeyCtrlB, maildir_move(-10), false},
-			{gocui.KeyPgup, maildir_move(-10), false},
+			{gocui.KeyArrowDown, maildirMove(1), false},
+			{gocui.KeyCtrlF, maildirMove(10), false},
+			{gocui.KeyPgdn, maildirMove(10), false},
+			{gocui.KeyCtrlB, maildirMove(-10), false},
+			{gocui.KeyPgup, maildirMove(-10), false},
 			{'/', switchToModeInt(CommandSearchMode), false},
 			{'m', switchToModeInt(CommandNewMailMode), false},
 			{'r', replyMessage, false},
@@ -1204,15 +1204,15 @@ func drawSlider(amua *Amua, g *gocui.Gui) {
 	}
 	v.Clear()
 	_, h := v.Size()
-	slider_h := h * h / len(amua.cur_maildir_view.md.messages)
-	whites := amua.cur_maildir_view.cur_top * h / len(amua.cur_maildir_view.md.messages)
-	if slider_h <= 0 {
-		slider_h = 1
+	sliderH := h * h / len(amua.curMaildirView.md.messages)
+	whites := amua.curMaildirView.curTop * h / len(amua.curMaildirView.md.messages)
+	if sliderH <= 0 {
+		sliderH = 1
 	}
 	for i := 0; i < whites; i++ {
 		fmt.Fprintln(v, " ")
 	}
-	for i := 0; i < slider_h; i++ {
+	for i := 0; i < sliderH; i++ {
 		fmt.Fprintln(v, "\u2588")
 	}
 }
@@ -1222,7 +1222,7 @@ var displayPrompt func(s string)
 var displayPromptWithPrefill func(s string, prefill string)
 var getPromptInput func() string
 
-func get_layout(amua *Amua) func(g *gocui.Gui) error {
+func getLayout(amua *Amua) func(g *gocui.Gui) error {
 	return func(g *gocui.Gui) error {
 		maxX, maxY := g.Size()
 		v, err := g.SetView(SIDE_VIEW, -1, -1, int(0.15*float32(maxX)), maxY-1)
@@ -1255,7 +1255,7 @@ func get_layout(amua *Amua) func(g *gocui.Gui) error {
 			if amua.mode == MaildirMode {
 				v.Highlight = true
 			}
-			amua.cur_maildir_view.Draw(v)
+			amua.curMaildirView.Draw(v)
 			err = g.SetCurrentView(MAILDIR_VIEW)
 			if err != nil {
 				log.Panicln(err)
@@ -1281,19 +1281,19 @@ func get_layout(amua *Amua) func(g *gocui.Gui) error {
 	}
 }
 
-type known_maildir struct {
+type knownMaildir struct {
 	maildir      *Maildir // might be nil if not loaded
 	path         string
-	stop_monitor chan bool
+	stopMonitor chan bool
 	active       bool //true if the maildir is actively being displayed, only one is at a given time
 }
 
-func init_known_maildirs(maildirs []string, onChange onMaildirChangeFn) ([]known_maildir, error) {
-	known_maildirs := make([]known_maildir, len(maildirs))
+func initKnownMaildirs(maildirs []string, onChange onMaildirChangeFn) ([]knownMaildir, error) {
+	knownMaildirs := make([]knownMaildir, len(maildirs))
 	for i, m := range maildirs {
 		var err error
 		var md *Maildir
-		km := &known_maildirs[i]
+		km := &knownMaildirs[i]
 		active := false
 		if i == 0 {
 			active = true
@@ -1304,28 +1304,28 @@ func init_known_maildirs(maildirs []string, onChange onMaildirChangeFn) ([]known
 		}
 		km.maildir = md
 		km.path = m
-		km.stop_monitor = make(chan bool)
+		km.stopMonitor = make(chan bool)
 		km.active = active
 		go km.Start(onChange)
 	}
-	return known_maildirs, nil
+	return knownMaildirs, nil
 }
 
 var cfg *config.Config
 
 func main() {
 	var err error
-	var cfg_file = flag.String("config", "", "the config file")
+	var cfgFile = flag.String("config", "", "the config file")
 	flag.Parse()
 	usr, err := user.Current()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if *cfg_file == "" {
-		*cfg_file = filepath.Join(usr.HomeDir, ".amuarc")
+	if *cfgFile == "" {
+		*cfgFile = filepath.Join(usr.HomeDir, ".amuarc")
 	}
-	cfg, err = config.NewConfig(*cfg_file)
+	cfg, err = config.NewConfig(*cfgFile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -1339,7 +1339,7 @@ func main() {
 	g.Editor = gocui.EditorFunc(getCommandEditor(amua))
 	defer g.Close()
 
-	onchange := func(km *known_maildir) {
+	onchange := func(km *knownMaildir) {
 		g.Execute(func(g *gocui.Gui) error {
 			mv, err := g.View(MAILDIR_VIEW)
 			if err != nil {
@@ -1355,17 +1355,17 @@ func main() {
 		})
 	}
 
-	amua.known_maildirs, err = init_known_maildirs(cfg.AmuaConfig.Maildirs, onchange)
+	amua.knownMaildirs, err = initKnownMaildirs(cfg.AmuaConfig.Maildirs, onchange)
 	if err != nil {
 		log.Fatal(err)
 	}
 	amua.curMaildir = 0
-	amua.prev_mode = MaildirMode
+	amua.prevMode = MaildirMode
 	amua.mode = MaildirMode
-	md := amua.known_maildirs[amua.curMaildir].maildir
-	g.SetLayout(get_layout(amua))
+	md := amua.knownMaildirs[amua.curMaildir].maildir
+	g.SetLayout(getLayout(amua))
 	mdv := &MaildirView{md: md}
-	amua.cur_maildir_view = mdv
+	amua.curMaildirView = mdv
 	err = keybindings(amua, g)
 	if err != nil {
 		log.Panicln(err)

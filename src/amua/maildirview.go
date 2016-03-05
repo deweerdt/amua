@@ -9,7 +9,7 @@ import (
 )
 
 type MaildirView struct {
-	cur_top int
+	curTop int
 	cur     int
 	md      *Maildir
 }
@@ -25,24 +25,24 @@ func (mv *MaildirView) Draw(v *gocui.View) error {
 	}
 
 	xo, _ := v.Origin()
-	v.SetOrigin(xo, mv.cur_top)
+	v.SetOrigin(xo, mv.curTop)
 	xc, _ := v.Cursor()
-	v.SetCursor(xc, mv.cur-mv.cur_top)
+	v.SetCursor(xc, mv.cur-mv.curTop)
 	msgs := mv.md.messages
-	flags_len := 5
-	index_len := 6
-	size_len := 5
-	rem_w := w - index_len - flags_len - size_len + 2 /* two spaces */ + 2 /* two brackets around the size */
-	from_ratio := 25
-	subj_ratio := 100 - from_ratio
-	from_len := (rem_w - 10) * from_ratio / 100.0
-	subj_len := (rem_w - 10) * subj_ratio / 100.0
-	fmt_string := fmt.Sprintf("%%-%dd%%-%ds%%-%ds [%%%ds] %%-%ds\n", index_len, flags_len, from_len, size_len, subj_len)
+	flagsLen := 5
+	indexLen := 6
+	sizeLen := 5
+	remW := w - indexLen - flagsLen - sizeLen + 2 /* two spaces */ + 2 /* two brackets around the size */
+	fromRatio := 25
+	subjRatio := 100 - fromRatio
+	fromLen := (remW - 10) * fromRatio / 100.0
+	subjLen := (remW - 10) * subjRatio / 100.0
+	fmtString := fmt.Sprintf("%%-%dd%%-%ds%%-%ds [%%%ds] %%-%ds\n", indexLen, flagsLen, fromLen, sizeLen, subjLen)
 	for i, m := range msgs {
-		from := util.TruncateString(m.From, from_len)
-		subj := util.TruncateString(m.Subject, subj_len)
+		from := util.TruncateString(m.From, fromLen)
+		subj := util.TruncateString(m.Subject, subjLen)
 		flags := flagsToString(m.Flags)
-		fmt.Fprintf(v, fmt_string, i, flags, from, util.SiteToHuman(m.size), subj)
+		fmt.Fprintf(v, fmtString, i, flags, from, util.SiteToHuman(m.size), subj)
 
 	}
 	return nil
@@ -65,9 +65,9 @@ func (mv *MaildirView) scroll(v *gocui.View, incr int) {
 	mv.cur += incr
 	y += incr
 	if y >= h || y < 0 {
-		mv.cur_top += incr
-		if mv.cur_top < 0 {
-			mv.cur_top = 0
+		mv.curTop += incr
+		if mv.curTop < 0 {
+			mv.curTop = 0
 		}
 		yo = yo + incr
 		if yo < 0 {
@@ -83,6 +83,6 @@ func (mv *MaildirView) scroll(v *gocui.View, incr int) {
 	if false {
 		xo, yo = v.Origin()
 		x, y = v.Cursor()
-		setStatus(fmt.Sprintf("%s origin=(%d), cursor=(%d), mv=(%d, %d)", str, yo, y, mv.cur, mv.cur_top))
+		setStatus(fmt.Sprintf("%s origin=(%d), cursor=(%d), mv=(%d, %d)", str, yo, y, mv.cur, mv.curTop))
 	}
 }
