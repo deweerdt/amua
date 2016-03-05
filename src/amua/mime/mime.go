@@ -202,12 +202,12 @@ type PartDescr struct {
 
 type ParseFn func(*ParserContext, []int, io.Reader, PartDescr) error
 
-func WalkParts(r io.Reader, parse ParseFn, pc *ParserContext, max_depth int) error {
+func WalkParts(r io.Reader, parse ParseFn, pc *ParserContext, maxDepth int) error {
 	msg, err := mail.ReadMessage(r)
 	if err != nil {
 		return err
 	}
-	return partWalker(msg.Body, []int{}, msg.Header, parse, pc, max_depth)
+	return partWalker(msg.Body, []int{}, msg.Header, parse, pc, maxDepth)
 }
 
 func getHeader(i map[string][]string, header string) string {
@@ -224,36 +224,36 @@ func partWalker(r io.Reader, path []int, header map[string][]string, parse Parse
 		return nil
 	}
 	cds := getHeader(header, "content-disposition")
-	content_disposition_str, cd_params, err := mime.ParseMediaType(cds)
-	var content_disposition ContentDisposition
+	contentDisposition_str, cdParams, err := mime.ParseMediaType(cds)
+	var contentDisposition ContentDisposition
 	if err != nil {
-		content_disposition = CDInline
+		contentDisposition = CDInline
 	} else {
-		content_disposition = ContentDispositionFromStr(content_disposition_str)
+		contentDisposition = ContentDispositionFromStr(contentDisposition_str)
 	}
 
-	content_type := getHeader(header, "content-type")
-	media_type, params, err := mime.ParseMediaType(content_type)
+	contentType := getHeader(header, "content-type")
+	mediaType, params, err := mime.ParseMediaType(contentType)
 	if err != nil {
-		media_type = "text/plain"
+		mediaType = "text/plain"
 	}
 
-	is_multipart := true
+	isMultipart := true
 	boundary := ""
-	media_type = strings.ToLower(media_type)
-	if !strings.HasPrefix(media_type, "multipart/") {
-		is_multipart = false
+	mediaType = strings.ToLower(mediaType)
+	if !strings.HasPrefix(mediaType, "multipart/") {
+		isMultipart = false
 	} else {
 		var ok bool
 		boundary, ok = params["boundary"]
 		if !ok {
-			is_multipart = false
+			isMultipart = false
 		}
 	}
 
-	part_index := 0
-	if is_multipart {
-		err = parse(pc, path, nil, PartDescr{media_type, params, content_disposition, cd_params})
+	partIndex := 0
+	if isMultipart {
+		err = parse(pc, path, nil, PartDescr{mediaType, params, contentDisposition, cdParams})
 		if err != nil {
 			return err
 		}
@@ -266,11 +266,11 @@ func partWalker(r io.Reader, path []int, header map[string][]string, parse Parse
 			if err != nil {
 				return err
 			}
-			err = partWalker(p, append(path, part_index), p.Header, parse, pc, depth)
+			err = partWalker(p, append(path, partIndex), p.Header, parse, pc, depth)
 			if err != nil {
 				return err
 			}
-			part_index++
+			partIndex++
 		}
 		return nil
 	}
@@ -295,7 +295,7 @@ func partWalker(r io.Reader, path []int, header map[string][]string, parse Parse
 		reader = br
 	}
 retry:
-	decoded_buf, err := ioutil.ReadAll(reader)
+	decodedBuf, err := ioutil.ReadAll(reader)
 	if err != nil {
 		if qp {
 			/* qp tends to fail often, retry in non-qp */
@@ -306,5 +306,5 @@ retry:
 		}
 		return err
 	}
-	return parse(pc, path, bytes.NewBuffer(decoded_buf), PartDescr{media_type, params, content_disposition, cd_params})
+	return parse(pc, path, bytes.NewBuffer(decodedBuf), PartDescr{mediaType, params, contentDisposition, cdParams})
 }

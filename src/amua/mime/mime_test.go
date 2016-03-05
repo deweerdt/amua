@@ -459,7 +459,7 @@ NTVlYTY4ZWZmODk0ZmFjNTNiYjE4NzM5YTljYTI+XQ0+Pg1zdGFydHhyZWYNMTczDSUlRU9GDQ==
 func TestMime(t *testing.T) {
 	type oneresult struct {
 		path       []int
-		media_type string
+		mediaType string
 	}
 	type onetest struct {
 		msg     string
@@ -495,8 +495,8 @@ func TestMime(t *testing.T) {
 			if !reflect.DeepEqual(onet.results[i].path, path) {
 				t.Error(fmt.Sprintf("%v %v\n", onet.results[i].path, path))
 			}
-			if !reflect.DeepEqual(onet.results[i].media_type, pd.MediaType) {
-				t.Error(fmt.Sprintf("%v %v\n", onet.results[i].media_type, pd.MediaType))
+			if !reflect.DeepEqual(onet.results[i].mediaType, pd.MediaType) {
+				t.Error(fmt.Sprintf("%v %v\n", onet.results[i].mediaType, pd.MediaType))
 			}
 			pc.Ctx = i + 1
 			return nil
