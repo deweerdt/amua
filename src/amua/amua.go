@@ -544,15 +544,15 @@ const (
 )
 
 type Amua struct {
-	mode             Mode
+	mode            Mode
 	prevMode        Mode
-	curMaildirView *MaildirView
+	curMaildirView  *MaildirView
 	curMessage_view *MessageView
 	knownMaildirs   []knownMaildir
-	curMaildir       int
-	searchPattern    string
-	prompt           string
-	newMail          NewMail
+	curMaildir      int
+	searchPattern   string
+	prompt          string
+	newMail         NewMail
 }
 
 func (amua *Amua) getMessage(idx int) *Message {
@@ -1113,6 +1113,19 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 	replyMessage := reply(false)
 	groupReplyMessage := reply(true)
 	pipeMessage := func(g *gocui.Gui, v *gocui.View) error {
+		m := amua.curMessage()
+		cmd := exec.Command("vim", m.path)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		if err := cmd.Run(); err != nil {
+			log.Fatal(err)
+		}
+		setStatus("")
+		switchToMode(amua, g, MaildirMode)
+		err := g.Sync()
+		if err != nil {
+			log.Fatal(err)
+		}
 		/* exec a command, pipe the message there */
 		return nil
 	}
@@ -1282,10 +1295,10 @@ func getLayout(amua *Amua) func(g *gocui.Gui) error {
 }
 
 type knownMaildir struct {
-	maildir      *Maildir // might be nil if not loaded
-	path         string
+	maildir     *Maildir // might be nil if not loaded
+	path        string
 	stopMonitor chan bool
-	active       bool //true if the maildir is actively being displayed, only one is at a given time
+	active      bool //true if the maildir is actively being displayed, only one is at a given time
 }
 
 func initKnownMaildirs(maildirs []string, onChange onMaildirChangeFn) ([]knownMaildir, error) {
