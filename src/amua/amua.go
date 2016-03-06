@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -22,100 +21,6 @@ import (
 	"github.com/deweerdt/gocui"
 	"github.com/mitchellh/colorstring"
 )
-
-
-type Maildir struct {
-	path     string
-	messages []*Message
-}
-
-type onMaildirChangeFn func(*knownMaildir)
-
-func (km *knownMaildir) Start(onChange onMaildirChangeFn) {
-	for {
-		select {
-		case <-km.stopMonitor:
-			return
-		case <-time.After(time.Second * 1):
-			changed, _ := processNew(km.maildir, km.active)
-			if changed {
-				onChange(km)
-			}
-		}
-	}
-}
-func (km *knownMaildir) Stop() {
-	km.stopMonitor <- true
-}
-
-type readState struct {
-	r       io.Reader // a reader we read the email from
-	buffers []*bytes.Buffer
-}
-
-
-func processNew(md *Maildir, active bool) (bool, error) {
-	curdir := filepath.Join(md.path, "cur")
-	newdir := filepath.Join(md.path, "new")
-	fis, err := ioutil.ReadDir(newdir)
-	changed := false
-	if err != nil {
-		return false, err
-	}
-	for _, fi := range fis {
-		oldName := fi.Name()
-		newName := fmt.Sprintf("%s:2,", oldName)
-		err := os.Rename(filepath.Join(newdir, oldName), filepath.Join(curdir, newName))
-		if err != nil {
-			return false, err
-		}
-		if active {
-			m, err := LoadMessage(filepath.Join(curdir, newName))
-			if err != nil {
-				return false, err
-			}
-			md.messages = append(md.messages, m)
-		} else {
-			md.messages = append(md.messages, &Message{path: filepath.Join(curdir, newName)})
-		}
-		changed = true
-	}
-	return changed, nil
-}
-
-func LoadMaildir(mdPath string, active bool) (*Maildir, error) {
-	md := &Maildir{}
-	md.path = mdPath
-	curdir := filepath.Join(mdPath, "cur")
-	fis, err := ioutil.ReadDir(curdir)
-	if err != nil {
-		return nil, err
-	}
-	msgs := make([]*Message, len(fis))
-	for i, fi := range fis {
-		if active {
-			m, err := LoadMessage(filepath.Join(curdir, fi.Name()))
-			if err != nil {
-				return nil, err
-			}
-			msgs[i] = m
-		} else {
-			msgs[i] = &Message{path: filepath.Join(curdir, fi.Name())}
-		}
-
-	}
-	md.messages = msgs
-	_, err = processNew(md, active)
-	if err != nil {
-		panic(err)
-	}
-
-	return md, nil
-}
-
-func (md *Maildir) SortByDate() {
-	sort.Sort(ByDate(md.messages))
-}
 
 type Mode int
 
@@ -134,14 +39,14 @@ const (
 )
 
 type Amua struct {
-	mode            Mode // the current mode the app is in
-	prevMode        Mode // the mode the app was in
-	curMaildirView  *MaildirView // the current mailview
-	knownMaildirs   []knownMaildir // list of loaded maildirs
-	curMaildir      int // index into knownMaildirs
-	searchPattern   string //currently searched pattern
-	prompt          string // current prompt: useful to know what to needs to be taken out of the view 
-	newMail         NewMail // the mail currently beeing edited
+	mode           Mode           // the current mode the app is in
+	prevMode       Mode           // the mode the app was in
+	curMaildirView *MaildirView   // the current mailview
+	knownMaildirs  []knownMaildir // list of loaded maildirs
+	curMaildir     int            // index into knownMaildirs
+	searchPattern  string         //currently searched pattern
+	prompt         string         // current prompt: useful to know what to needs to be taken out of the view
+	newMail        NewMail        // the mail currently beeing edited
 }
 
 func (amua *Amua) getMessage(idx int) *Message {
@@ -806,8 +711,12 @@ func drawSlider(amua *Amua, g *gocui.Gui) {
 	}
 	v.Clear()
 	_, h := v.Size()
-	sliderH := h * h / len(amua.curMaildirView.md.messages)
-	whites := amua.curMaildirView.curTop * h / len(amua.curMaildirView.md.messages)
+	sliderH := 1
+	whites := h - 1
+	if len(amua.curMaildirView.md.messages) > 0 {
+		sliderH = h * h / len(amua.curMaildirView.md.messages)
+		whites = amua.curMaildirView.curTop * h / len(amua.curMaildirView.md.messages)
+	}
 	if sliderH <= 0 {
 		sliderH = 1
 	}
@@ -928,7 +837,7 @@ func main() {
 		defaultRc := filepath.Join(usr.HomeDir, ".amuarc")
 		_, err := os.Stat(defaultRc)
 		if err != nil {
-			log.Fatalf("No config file provided, and can't open %s - ('%s'), exiting.", defaultRc,  err. Error())
+			log.Fatalf("No config file provided, and can't open %s - ('%s'), exiting.", defaultRc, err.Error())
 		}
 		*cfgFile = defaultRc
 	}
@@ -937,6 +846,10 @@ func main() {
 		log.Fatal(err)
 	}
 
+	if len(cfg.AmuaConfig.Maildirs) == 0 {
+		log.Fatal("No maildir defined in '%s', exiting.", *cfgFile)
+
+	}
 	amua := &Amua{}
 
 	g := gocui.NewGui()
