@@ -39,16 +39,26 @@ const (
 )
 
 type Amua struct {
+	cfg            config.Config  // the running configuration
 	mode           Mode           // the current mode the app is in
 	prevMode       Mode           // the mode the app was in
 	curMaildirView *MaildirView   // the current mailview
 	knownMaildirs  []knownMaildir // list of loaded maildirs
 	curMaildir     int            // index into knownMaildirs
-	searchPattern  string         //currently searched pattern
+	searchPattern  string         // currently searched pattern
 	prompt         string         // current prompt: useful to know what to needs to be taken out of the view
 	newMail        NewMail        // the mail currently beeing edited
 }
 
+func (amua *Amua) ExtEditor() string {
+	editor := "vi"
+	if amua.cfg.AmuaConfig.Editor != "" {
+		editor = amua.cfg.AmuaConfig.Editor
+	} else if env := os.Getenv("EDITOR"); env != "" {
+		editor = env
+	}
+	return editor
+}
 func (amua *Amua) getMessage(idx int) *Message {
 	return amua.curMaildirView.md.messages[idx]
 }
@@ -554,7 +564,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 					log.Fatal(err)
 				}
 
-				cmd := exec.Command("vim", tf.Name())
+				cmd := exec.Command(amua.ExtEditor(), tf.Name())
 				cmd.Stdin = os.Stdin
 				cmd.Stdout = os.Stdout
 				if err := cmd.Run(); err != nil {
@@ -608,7 +618,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 	groupReplyMessage := reply(true)
 	pipeMessage := func(g *gocui.Gui, v *gocui.View) error {
 		m := amua.curMessage()
-		cmd := exec.Command("vim", m.path)
+		cmd := exec.Command(amua.ExtEditor(), m.path)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		if err := cmd.Run(); err != nil {

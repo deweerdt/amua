@@ -1,8 +1,8 @@
-[_] 75% v1
+[_] 72% v1
 	: v1 is a usable replacement for my current mutt setup:
 	: we'll use fetchmail to put messages in maildirs, and amua will monitor
 	: those maildirs
-	[_] 75% maildir
+	[_] 83% maildir
 		[X] 100% view
 			[X] scroll up and down
 			[X] slider
@@ -13,14 +13,14 @@
 			: https://cr.yp.to/proto/maildir.html
 			: inotify is linux only, so it sounds like a dedicated goroutine
 			: will do 
-		[_] 50% actions
+		[_] 66% actions
 			[X] 100% delete
 			[X] 100% undelete
 			[_] 0% move
 			[_] 0% mail
-			[_] pipe
+			[X] pipe
 			[X] 100% search /, n and N
-	[_] 25% message view
+	[_] 55% message view
 		[_] 50% view
 			[X] 100% text/html
 			[_] 0% attachments
@@ -33,16 +33,15 @@
 					[_] save attachements
 					[_] open attachements
 					[_] pipe attachements
-		[_] 0% actions
-			[_] 0% reply to
-			[_] 0% group reply
-			[_] 0% delete
-			[_] 0% bounce
+		[_] 60% actions
+			[X] 100% reply to
+			[X] 100% group reply
+			[X] 100% delete
 			[_] 0% search /, n and N
-	[_] % config format
+	[_] 50% config format
 		; https://github.com/BurntSushi/toml
 		[_] Configurable editor (or $EDITOR)
-		[_] SMTP config
+		[X] SMTP config
 	[X] 100% maildir sidebar
 		[X] view
 		[X] have a way to show  selection
@@ -56,6 +55,8 @@ future
 			make text vs. html configurable
 			slider
 			alternate encodings (window-1252, iso-8859-1)
+		actions
+			bounce
 	maildir side bar
 		view
 			scrolling (hardcoded for now)
