@@ -14,9 +14,10 @@ type SMTPConfig struct {
 }
 
 type AmuaConfig struct {
-	Maildirs []string
-	Me       []string
-	Editor   string
+	Maildirs  []string
+	Me        string
+	MeAliases []string
+	Editor    string
 }
 type Config struct {
 	AmuaConfig AmuaConfig

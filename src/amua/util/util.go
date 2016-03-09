@@ -5,6 +5,13 @@ import (
 	"net/mail"
 )
 
+func AddressesToString(ads []*mail.Address) []string {
+	ret := []string{}
+	for _, a := range ads {
+		ret = append(ret, a.String())
+	}
+	return ret
+}
 func ConcatAddresses(ads []*mail.Address) string {
 	ret := ""
 	for i, a := range ads {

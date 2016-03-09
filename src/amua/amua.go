@@ -585,7 +585,7 @@ func keybindings(amua *Amua, g *gocui.Gui) error {
 		return nil
 	}
 	sendMail := func(g *gocui.Gui, v *gocui.View) error {
-		err := send(&amua.newMail, cfg.SMTPConfig)
+		err := send(&amua.newMail, cfg)
 		if err != nil {
 			setStatus(err.Error())
 			return nil
@@ -971,11 +971,20 @@ func main() {
 		return
 	}
 	isMe = func(m *mail.Address) bool {
-		for _, a := range cfg.AmuaConfig.Me {
-			if m.Address == a {
+		cmpAddr := func(s string) bool {
+			if m.Address == s {
 				return true
 			}
-			if m.Address == fmt.Sprintf("<%s>", a) {
+			if m.Address == fmt.Sprintf("<%s>", s) {
+				return true
+			}
+			return false
+		}
+		if cmpAddr(cfg.AmuaConfig.Me) {
+			return true
+		}
+		for _, a := range cfg.AmuaConfig.MeAliases {
+			if cmpAddr(a) {
 				return true
 			}
 		}
